@@ -10,11 +10,11 @@ class FileClassifier:
     """
 
     def classify(self, base_path: Path, file: Path) -> Subtask:
-        parts_to_check = file.parts[len(base_path.parts) : -1]
+        parts_to_check = file.parts[len(base_path.absolute().parts) : -1]
 
         subtask = Subtask(
             path=file,
-            name=file.name,
+            name=file.stem,
             stage=None,
             entity=None,
             system_type=None,

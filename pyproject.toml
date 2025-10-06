@@ -1,0 +1,30 @@
+[project]
+name = "subtask-manager"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Vladimir Kosimovsky", email = "vladimir.kosimovsky@outlook.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.11.9",
+]
+
+[project.scripts]
+subtask-manager = "subtask_manager:main"
+
+[tool.maturin]
+module-name = "subtask_manager._core"
+python-packages = ["subtask_manager"]
+python-source = "src"
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "ruff>=0.13.2",
+]
