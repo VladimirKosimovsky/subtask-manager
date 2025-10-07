@@ -1,6 +1,6 @@
 import pytest
 
-from common.enums import EtlStage, SystemType, TaskType
+from python.common.enums import EtlStage, SystemType, TaskType
 
 
 # ------------------------

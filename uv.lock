@@ -11,6 +11,18 @@ wheels = [
 ]
 
 [[package]]
+name = "click"
+version = "8.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/46/61/de6cd827efad202d7057d93e0fed9294b96952e188f7384832791c7b2254/click-8.3.0.tar.gz", hash = "sha256:e7b8232224eba16f4ebe410c25ced9f7875cb5f3263ffc93cc3e8da705e229c4", size = 276943 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/d3/9dcc0f5797f070ec8edf30fbadfb200e71d9db6b84d211e3b2085a7589a0/click-8.3.0-py3-none-any.whl", hash = "sha256:9b9f285302c6e3064f4330c05f05b81945b2a39544279343e6e7c5f27a9baddc", size = 107295 },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -26,6 +38,27 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f2/97/ebf4da567aa6827c909642694d71c9fcf53e5b504f2d96afea02718862f3/iniconfig-2.1.0.tar.gz", hash = "sha256:3abbd2e30b36733fee78f9c7f7308f2d0050e88f0087fd25c2645f63c773e1c7", size = 4793 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760", size = 6050 },
+]
+
+[[package]]
+name = "maturin"
+version = "1.9.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/0a/70972eb5d1aae3444905fe0875bcef9e6d0ed475d1d0528f7b72ee8a3eb8/maturin-1.9.5.tar.gz", hash = "sha256:2f37e2a47678f555d141e2ad846e7dcfd3712d437a48ae01506a4f178db87c70", size = 214843 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/72/185b4c4de3b5203da4b950e8bada96d9a085b16521ded0424639f0dbd863/maturin-1.9.5-py3-none-linux_armv6l.whl", hash = "sha256:696f0a61c35e096cda4c3e85e4cefa84d0dad6e3db6ecbecf02c0265e3b4530a", size = 8113184 },
+    { url = "https://files.pythonhosted.org/packages/70/3b/0a927f2e21942b89bf563127fbf344a4202a83a27afc9ca1ff6b4673902d/maturin-1.9.5-py3-none-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:ccf792b6b1d359b6289e4c3391be0091b952c8f5a6eb1328f0857f0e2bcf9e63", size = 15776635 },
+    { url = "https://files.pythonhosted.org/packages/8e/0b/ded5d5682eeb2520f59c580ed087d61b9caec1c191057a87fe029ca5c67f/maturin-1.9.5-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:6ce89643ec56ad9653127ca32682a85f229bd955705adb40adf77cd4ae6d7314", size = 8232894 },
+    { url = "https://files.pythonhosted.org/packages/fd/5f/613de34ec68926f8140e7d57527fdb9937859421cddde90857b64c3b1304/maturin-1.9.5-py3-none-manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686.whl", hash = "sha256:130f1f2152adb4cbc80f900ec95c5708c5f7375ce8e9a499bbb70108996020f2", size = 8162309 },
+    { url = "https://files.pythonhosted.org/packages/09/49/237c4433a0a353104330a9c6d596e7842a3207666ed002c108b7e4fb0578/maturin-1.9.5-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl", hash = "sha256:746e2c32f1d09bcf76ee1271e4b54049e274eadb93a7e58e088d20ccd5128b8c", size = 8626378 },
+    { url = "https://files.pythonhosted.org/packages/ef/c6/bf9c46afd744ee17e5e78d9a944ce69ab3880d99a808248fd6a89e50b112/maturin-1.9.5-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64.whl", hash = "sha256:936b5d1c3f4059f52466b6e63a2ef790ee75ec6e3432569bafef11fb2db3d128", size = 7974743 },
+    { url = "https://files.pythonhosted.org/packages/6f/e1/9b0d0d8030562e8b87cec7eb5c992a4701b42e5333bfe771789f15fcbcff/maturin-1.9.5-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l.whl", hash = "sha256:c58cc86974e9111b811d047249e77a3138a1b5d2ebaa343af28db6ef7811e81b", size = 7953611 },
+    { url = "https://files.pythonhosted.org/packages/57/ad/0895fc8a60139fa7ee55fc0ab0b864b5f3a6c484ac625525412b39913168/maturin-1.9.5-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.musllinux_1_1_ppc64le.whl", hash = "sha256:70580edf54fa95747b025ea34ff89ba5acba762893bfbda60665aa932e4c7393", size = 10463354 },
+    { url = "https://files.pythonhosted.org/packages/35/43/49b555532693c004873de1f75f431ef701de7f803206b219baeb542b7d3e/maturin-1.9.5-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:25df3abb93a4fcc095e4828c5e4fca2bf17b53aaf8ed8110eaf422eb928f2bb1", size = 8847798 },
+    { url = "https://files.pythonhosted.org/packages/c7/6b/df8a6dc439fa91b0849055724b557d9796c4aedaf08e4c79d4eb0007f6af/maturin-1.9.5-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:a421a0099a0758ef892a34b5df1b445894cb82a2013d57afdd1000439c34e4e9", size = 8423902 },
+    { url = "https://files.pythonhosted.org/packages/ed/ae/a5b8891ae263526f6e073cf65bff3f9587464d3b92a9d719ecd6bf00def8/maturin-1.9.5-py3-none-win32.whl", hash = "sha256:2da2440c437e6678a6f05c331ffc541d4e6fc74048848a9e0b9ab3e7f7b6887a", size = 7152764 },
+    { url = "https://files.pythonhosted.org/packages/bd/9d/3c606b9984ab7c4002b5a75c553472ea587e0d1f0a25b7c7dee7b4d36199/maturin-1.9.5-py3-none-win_amd64.whl", hash = "sha256:188d8aa13ed4abdf156dfb1866db6c933c2649a6879f01dbd45247924eac5fd4", size = 8145747 },
+    { url = "https://files.pythonhosted.org/packages/10/b6/7961a329120a3a3a3f863531fe90da94401a1af555557c21cb96fccc7a06/maturin-1.9.5-py3-none-win_arm64.whl", hash = "sha256:203bbfb391d180e324f59796eb1f1c035e56d5f3e63fc607303cc5f7e78819eb", size = 6847183 },
 ]
 
 [[package]]
@@ -136,6 +169,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pyo3-stubgen"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/88/db/df405145366251eded9194a1bf2fdba544f44a4b5d571c519f7916ddec61/pyo3_stubgen-0.3.0.tar.gz", hash = "sha256:57434fb833d5a3e54942e6f5fde486b56412bf02319cf528068254da58b95327", size = 5935 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/97/fb/92a4a232d31c00276085d03e6f96f28b940cc802cf69b07b8d892def293d/pyo3_stubgen-0.3.0-py3-none-any.whl", hash = "sha256:a05c32ddf1981be043fa5015f24d625b4eb631c27769e0db475acf4b28e5acc3", size = 5611 },
+]
+
+[[package]]
 name = "pytest"
 version = "8.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -187,6 +232,8 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "maturin" },
+    { name = "pyo3-stubgen" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -196,6 +243,8 @@ requires-dist = [{ name = "pydantic", specifier = ">=2.11.9" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "maturin", specifier = ">=1.9.5" },
+    { name = "pyo3-stubgen", specifier = ">=0.3.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "ruff", specifier = ">=0.13.2" },
 ]
