@@ -14,9 +14,15 @@ class SystemType:
     SQLite: SystemType
     SqlServer: SystemType
     Vertica: SystemType
+    Other: SystemType
     # Constructor - private to prevent direct instantiation
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
-
+    
+    @classmethod
+    def from_alias(
+        cls, alias: str,
+    ) -> SystemType: ...
+    
     # String representation
     @override
     def __str__(self) -> str: ...
@@ -30,6 +36,7 @@ class SystemType:
     def __ne__(self, other: Any) -> bool: ...
     @override
     def __hash__(self) -> int: ...
+    
 
 class EtlStage:
     name: str

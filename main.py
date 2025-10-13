@@ -9,3 +9,7 @@ for subtask in sm.subtasks:
 print(EtlStage.Postprocessing.aliases)
 
 print(SystemType.PostgreSQL.aliases)
+
+print(SystemType.from_alias("pg")==SystemType.PostgreSQL)
+print(type(SystemType.from_alias("pg")))
+print(type(SystemType.PostgreSQL))

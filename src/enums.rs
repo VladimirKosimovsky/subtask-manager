@@ -211,15 +211,15 @@ impl SystemType {
             ])
         })
     }
-    pub fn from_folder_name(folder_name: &str) -> SystemType {
+    pub fn from_alias(alias: &str) -> Result<SystemType, String> {
+        let alias_lower = alias.to_lowercase();
         for (system_type, system_type_info) in Self::system_type_data().iter() {
-            if system_type_info.name == folder_name
-                || system_type_info.aliases.contains(&folder_name)
-            {
-                return *system_type;
+            if system_type_info.name == alias_lower 
+                || system_type_info.aliases.iter().any(|&a| a == alias_lower) {
+                return Ok(*system_type);
             }
         }
-        SystemType::Other
+        Err(format!("Unknown system type alias: {}", alias))
     }
     pub fn as_str(&self) -> &str {
         match self {

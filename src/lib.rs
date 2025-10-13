@@ -15,6 +15,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::PyObject;
 
+
 /// SubtaskManager exposed to Python
 #[pyclass]
 pub struct SubtaskManager {
@@ -64,39 +65,38 @@ impl SubtaskManager {
         let include_common = include_common.unwrap_or(true);
         let mut filtered: Vec<crate::models::Subtask> = Vec::new();
 
-        // input_system_type = SystemType.from_folder_name(&system_type);
         let input_system_type = system_type
             .as_ref()
-            .map(|st| SystemType::from_folder_name(st));
+            .and_then(|st| SystemType::from_alias(st).ok());
 
-        for s in &self.subtasks {
+        for subtask in &self.subtasks {
             if let Some(ref es) = etl_stage {
-                if s.stage.as_ref() != Some(es) {
+                if subtask.stage.as_ref() != Some(es) {
                     continue;
                 }
             }
             if let Some(ref en) = entity {
-                if s.entity.as_ref() != Some(en) {
+                if subtask.entity.as_ref() != Some(en) {
                     continue;
                 }
             }
             // Filter by system_type using the converted enum
             if let Some(ref input_st) = input_system_type {
-                if s.system_type.as_ref() != Some(input_st) {
+                if subtask.system_type.as_ref() != Some(input_st) {
                     continue;
                 }
             }
             if let Some(ref tt) = task_type {
-                if s.task_type.as_ref() != Some(tt) {
+                if subtask.task_type.as_ref() != Some(tt) {
                     continue;
                 }
             }
             if let Some(ic) = is_common {
-                if s.is_common != ic {
+                if subtask.is_common != ic {
                     continue;
                 }
             }
-            filtered.push(s.clone());
+            filtered.push(subtask.clone());
         }
 
         if include_common {
@@ -202,6 +202,17 @@ impl SystemType {
     fn system_type_aliases_py(&self) -> Vec<&'static str> {
         self.aliases().to_vec()
     }
+    
+    #[staticmethod]
+    #[pyo3(name = "from_alias")]
+    fn from_alias_py(alias: String) -> PyResult<SystemType> {
+        SystemType::from_alias(&alias)
+            .map_err(|e| PyValueError::new_err(e))
+    }
+
+
+
+    
 }
 
 #[pymodule]
