@@ -1,6 +1,9 @@
+// use crate::etl_stage::EtlStage;
+use crate::enums::{EtlStage, SystemType};
 use crate::models::Subtask;
 use anyhow::{bail, Result};
 use std::path::Path;
+use strum::IntoEnumIterator;
 
 pub fn classify(base_path: &str, file_path: &str) -> Result<Subtask> {
     let base = Path::new(base_path);
@@ -28,56 +31,28 @@ pub fn classify(base_path: &str, file_path: &str) -> Result<Subtask> {
 
     // simple stage detection: check if part matches known stage aliases
     for part in &parts {
-        let l = part.to_lowercase();
-        match l.as_str() {
-            "00_setup" | "setup" | "s" | "00" => {
-                sub.stage = Some("SETUP".to_string());
+        if sub.stage.is_none() {
+            let detected_stage = EtlStage::from_folder_name(&part);
+            if detected_stage != EtlStage::Other {
+                sub.stage = Some(detected_stage.as_str().to_string());
                 checked_parts.push(part.clone());
+                break;
             }
-            "01_extract" | "extract" | "e" | "01" => {
-                sub.stage = Some("EXTRACT".to_string());
-                checked_parts.push(part.clone());
-            }
-            "02_transform" | "transform" | "t" | "02" => {
-                sub.stage = Some("TRANSFORM".to_string());
-                checked_parts.push(part.clone());
-            }
-            "03_load" | "load" | "l" | "03" => {
-                sub.stage = Some("LOAD".to_string());
-                checked_parts.push(part.clone());
-            }
-            "04_cleanup" | "cleanup" | "c" | "04" => {
-                sub.stage = Some("CLEANUP".to_string());
-                checked_parts.push(part.clone());
-            }
-            "05_post_processing" | "post_processing" | "pp" | "05" => {
-                sub.stage = Some("POST_PROCESSING".to_string());
-                checked_parts.push(part.clone());
-            }
-            _ => {}
+        } else {
+            break;
         }
     }
-
     // detect system type
     for part in &parts {
         if checked_parts.contains(part) {
             continue;
         }
         let l = part.to_lowercase();
-        match l.as_str() {
-            "pg" | "postgres" | "pg_dwh" | "postgres_db" | "postgresdb" => {
-                sub.system_type = Some("PG".to_string());
+        for system_type in SystemType::iter() {
+            if system_type.aliases().contains(&l.as_str()) {
                 checked_parts.push(part.clone());
+                sub.system_type = Some(system_type);
             }
-            "duck" | "duckdb" => {
-                sub.system_type = Some("DUCK".to_string());
-                checked_parts.push(part.clone());
-            }
-            "vertica" => {
-                sub.system_type = Some("VERTICA".to_string());
-                checked_parts.push(part.clone());
-            }
-            _ => {}
         }
     }
 

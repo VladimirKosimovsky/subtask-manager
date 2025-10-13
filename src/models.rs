@@ -1,6 +1,6 @@
+use crate::enums::{SystemType, TaskType};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::enums::TaskType;
 
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -12,7 +12,7 @@ pub struct Subtask {
     #[pyo3(get)]
     pub task_type: Option<String>,
     #[pyo3(get)]
-    pub system_type: Option<String>,
+    pub system_type: Option<SystemType>,
     #[pyo3(get)]
     pub stage: Option<String>,
     #[pyo3(get)]
@@ -27,7 +27,10 @@ impl Subtask {
     pub fn new(path: &str) -> Self {
         let p = std::path::Path::new(path);
         Subtask {
-            name: p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+            name: p
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default(),
             path: path.to_string(),
             task_type: None,
             system_type: None,

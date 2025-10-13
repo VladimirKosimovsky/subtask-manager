@@ -4,10 +4,12 @@ mod file_loader;
 mod file_scanner;
 mod models;
 
-use crate::file_scanner::scan_files;
 use crate::file_classifier::classify;
 use crate::file_loader::load;
+use crate::file_scanner::scan_files;
 use crate::models::Subtask;
+use enums::{EtlStage, SystemType};
+
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -24,33 +26,30 @@ pub struct SubtaskManager {
 #[pymethods]
 impl SubtaskManager {
     #[new]
-        fn new(base_path: String) -> PyResult<Self> {
-            // Build extension list from enums: hardcode same extension set here
-            let extensions = vec![
-                "sql","psql","tsql","plpgsql",
-                "sh",
-                "ps1",
-                "py",
-                "gql","graphql",
-                "json","jsonl",
-                "yaml","yml",
-            ];
-            let files = scan_files(&base_path, &extensions).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            let mut subtasks = Vec::new();
-            for f in files {
-                match classify(&base_path, &f) {
-                    Ok(s) => {
-                        match load(s) {
-                            Ok(loaded) => subtasks.push(loaded),
-                            Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
-                        }
-                    }
+    fn new(base_path: String) -> PyResult<Self> {
+        // Build extension list from enums: hardcode same extension set here
+        let extensions = vec![
+            "sql", "psql", "tsql", "plpgsql", "sh", "ps1", "py", "gql", "graphql", "json", "jsonl",
+            "yaml", "yml",
+        ];
+        let files = scan_files(&base_path, &extensions)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        let mut subtasks = Vec::new();
+        for f in files {
+            match classify(&base_path, &f) {
+                Ok(s) => match load(s) {
+                    Ok(loaded) => subtasks.push(loaded),
                     Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
-                }
+                },
+                Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
             }
-    
-            Ok(SubtaskManager { base_path, subtasks })
         }
+
+        Ok(SubtaskManager {
+            base_path,
+            subtasks,
+        })
+    }
     #[pyo3(signature = (etl_stage=None, entity=None, system_type=None,task_type=None, is_common=None, include_common=None))]
     fn get_tasks(
         &self,
@@ -65,6 +64,11 @@ impl SubtaskManager {
         let include_common = include_common.unwrap_or(true);
         let mut filtered: Vec<crate::models::Subtask> = Vec::new();
 
+        // input_system_type = SystemType.from_folder_name(&system_type);
+        let input_system_type = system_type
+            .as_ref()
+            .map(|st| SystemType::from_folder_name(st));
+
         for s in &self.subtasks {
             if let Some(ref es) = etl_stage {
                 if s.stage.as_ref() != Some(es) {
@@ -76,8 +80,9 @@ impl SubtaskManager {
                     continue;
                 }
             }
-            if let Some(ref st) = system_type {
-                if s.system_type.as_ref() != Some(st) {
+            // Filter by system_type using the converted enum
+            if let Some(ref input_st) = input_system_type {
+                if s.system_type.as_ref() != Some(input_st) {
                     continue;
                 }
             }
@@ -149,9 +154,61 @@ impl SubtaskManager {
     }
 }
 
+#[pymethods]
+impl EtlStage {
+    pub fn __str__(&self) -> &'static str {
+        self.name()
+    }
+
+    pub fn __repr__(&self) -> String {
+        format!("EtlStage.{}", self.name().to_uppercase())
+    }
+
+    #[getter]
+    #[pyo3(name = "name")]
+    fn stage_name_py(&self) -> &'static str {
+        self.name()
+    }
+    #[getter]
+    #[pyo3(name = "aliases")]
+    fn aliases_py(&self) -> Vec<&'static str> {
+        self.aliases().to_vec()
+    }
+}
+
+#[pymethods]
+impl SystemType {
+    pub fn __str__(&self) -> &'static str {
+        self.name()
+    }
+
+    pub fn __repr__(&self) -> String {
+        format!("SystemType.{}", self.name().to_uppercase())
+    }
+
+    #[getter]
+    #[pyo3(name = "id")]
+    fn system_type_id_py(&self) -> u8 {
+        *self.id()
+    }
+
+    #[getter]
+    #[pyo3(name = "name")]
+    fn system_type_name_py(&self) -> &'static str {
+        self.name()
+    }
+    #[getter]
+    #[pyo3(name = "aliases")]
+    fn system_type_aliases_py(&self) -> Vec<&'static str> {
+        self.aliases().to_vec()
+    }
+}
+
 #[pymodule]
 fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SubtaskManager>()?;
     m.add_class::<models::Subtask>()?;
+    m.add_class::<EtlStage>()?;
+    m.add_class::<SystemType>()?;
     Ok(())
 }

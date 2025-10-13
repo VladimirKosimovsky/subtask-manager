@@ -1,6 +1,6 @@
+use anyhow::Result;
 use std::collections::HashSet;
 use walkdir::WalkDir;
-use anyhow::Result;
 
 pub fn scan_files(base_dir: &str, extensions: &[&str]) -> Result<Vec<String>> {
     let mut exts: HashSet<String> = HashSet::new();

@@ -1,8 +1,7 @@
 from pathlib import Path
 
-from pydantic import BaseModel, Field
-
 from common.enums import EtlStage, SystemType, TaskType
+from pydantic import BaseModel, Field
 
 
 class Subtask(BaseModel):

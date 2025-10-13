@@ -1,4 +1,64 @@
+from typing import Any
+
 from typing_extensions import override
+
+class SystemType:
+    id: int
+    name: str
+    aliases: list[str]
+    Clickhouse: SystemType
+    Duckdb: SystemType
+    MySQL: SystemType
+    OracleDB: SystemType
+    PostgreSQL: SystemType
+    SQLite: SystemType
+    SqlServer: SystemType
+    Vertica: SystemType
+    # Constructor - private to prevent direct instantiation
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+    # String representation
+    @override
+    def __str__(self) -> str: ...
+    @override
+    def __repr__(self) -> str: ...
+
+    # Comparisons
+    @override
+    def __eq__(self, other: Any) -> bool: ...
+    @override
+    def __ne__(self, other: Any) -> bool: ...
+    @override
+    def __hash__(self) -> int: ...
+
+class EtlStage:
+    name: str
+    aliases: list[str]
+    # Enum variants as class attributes
+    Extract: EtlStage
+    Transform: EtlStage
+    Load: EtlStage
+    Setup: EtlStage
+    Cleanup: EtlStage
+    Postprocessing: EtlStage
+
+    # Constructor - private to prevent direct instantiation
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+
+    # String representation
+    @override
+    def __str__(self) -> str: ...
+    @override
+    def __repr__(self) -> str: ...
+
+    # Comparisons
+    @override
+    def __eq__(self, other: Any) -> bool: ...
+    @override
+    def __ne__(self, other: Any) -> bool: ...
+    @override
+    def __hash__(self) -> int: ...
+
 
 class Subtask:
     stage: str | None
