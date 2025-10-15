@@ -174,6 +174,19 @@ impl EtlStage {
     fn aliases_py(&self) -> Vec<&'static str> {
         self.aliases().to_vec()
     }
+    
+    #[getter]
+    #[pyo3(name = "id")]
+    fn stage_id_py(&self) -> u8 {
+        *self.id()
+    }
+    
+    #[staticmethod]
+    #[pyo3(name = "from_alias")]
+    fn from_alias_py(alias: String) -> PyResult<EtlStage> {
+        EtlStage::from_alias(&alias)
+            .map_err(|e| PyValueError::new_err(e))
+    }
 }
 
 #[pymethods]

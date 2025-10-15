@@ -9,6 +9,8 @@ for subtask in sm.subtasks:
 print(EtlStage.Postprocessing.aliases)
 
 print(SystemType.PostgreSQL.aliases)
+print(SystemType.PostgreSQL.id)
+print(EtlStage.Cleanup.id)
 
 print(SystemType.from_alias("pg")==SystemType.PostgreSQL)
 print(type(SystemType.from_alias("pg")))

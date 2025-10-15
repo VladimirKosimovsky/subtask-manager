@@ -6,6 +6,7 @@ use strum_macros::EnumIter;
 
 #[derive(Debug, Clone)]
 struct EtlStageData {
+    id: &'static u8,
     name: &'static str,
     aliases: [&'static str; 4],
 }
@@ -28,8 +29,17 @@ impl EtlStage {
         DATA.get_or_init(|| {
             HashMap::from([
                 (
+                    EtlStage::Setup,
+                    EtlStageData {
+                        id: &0,
+                        name: "setup",
+                        aliases: ["00_setup", "setup", "s", "00"],
+                    },
+                ),
+                (
                     EtlStage::Extract,
                     EtlStageData {
+                        id: &1,
                         name: "extract",
                         aliases: ["01_extract", "extract", "e", "01"],
                     },
@@ -37,6 +47,7 @@ impl EtlStage {
                 (
                     EtlStage::Transform,
                     EtlStageData {
+                        id: &2,
                         name: "transform",
                         aliases: ["02_transform", "transform", "t", "02"],
                     },
@@ -44,20 +55,15 @@ impl EtlStage {
                 (
                     EtlStage::Load,
                     EtlStageData {
+                        id: &3,
                         name: "load",
                         aliases: ["03_load", "load", "l", "03"],
                     },
                 ),
                 (
-                    EtlStage::Setup,
-                    EtlStageData {
-                        name: "setup",
-                        aliases: ["00_setup", "setup", "s", "00"],
-                    },
-                ),
-                (
                     EtlStage::Cleanup,
                     EtlStageData {
+                        id: &4,
                         name: "cleanup",
                         aliases: ["04_cleanup", "cleanup", "c", "04"],
                     },
@@ -65,6 +71,7 @@ impl EtlStage {
                 (
                     EtlStage::Postprocessing,
                     EtlStageData {
+                        id: &5,
                         name: "post_processing",
                         aliases: ["05_post_processing", "post_processing", "pp", "05"],
                     },
@@ -72,6 +79,7 @@ impl EtlStage {
                 (
                     EtlStage::Other,
                     EtlStageData {
+                        id: &6,
                         name: "other",
                         aliases: ["other", "misc", "unknown", "oth"],
                     },
@@ -79,14 +87,16 @@ impl EtlStage {
             ])
         })
     }
-
-    pub fn from_folder_name(folder_name: &str) -> EtlStage {
+     
+    
+    pub fn from_alias(alias: &str) ->  Result<EtlStage, String> {
+        let alias_lower = alias.to_lowercase();
         for (stage, stage_info) in Self::etl_stage_data().iter() {
-            if stage_info.name == folder_name || stage_info.aliases.contains(&folder_name) {
-                return *stage;
+            if stage_info.name == alias_lower || stage_info.aliases.iter().any(|&a| a == alias_lower) {
+                return Ok(*stage);
             }
         }
-        EtlStage::Other
+        Err(format!("Unknown ETL stage alias: {}", alias))
     }
 
     pub fn as_str(&self) -> &str {
@@ -100,7 +110,10 @@ impl EtlStage {
             EtlStage::Other => "OTHER",
         }
     }
-
+    pub fn id(&self) -> &'static u8 {
+        &Self::etl_stage_data()[self].id
+    }
+    
     pub fn name(&self) -> &'static str {
         &Self::etl_stage_data()[self].name
     }
@@ -205,7 +218,7 @@ impl SystemType {
                     SystemTypeData {
                         id: &8,
                         name: "other",
-                        aliases: vec!["other", "unknown", "misc"],
+                        aliases: vec![],
                     },
                 ),
             ])

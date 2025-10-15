@@ -39,6 +39,7 @@ class SystemType:
     
 
 class EtlStage:
+    id: int
     name: str
     aliases: list[str]
     # Enum variants as class attributes
@@ -65,7 +66,11 @@ class EtlStage:
     def __ne__(self, other: Any) -> bool: ...
     @override
     def __hash__(self) -> int: ...
-
+    
+    @classmethod
+    def from_alias(
+        cls, alias: str,
+    ) -> EtlStage: ...
 
 class Subtask:
     stage: str | None

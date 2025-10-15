@@ -32,7 +32,7 @@ pub fn classify(base_path: &str, file_path: &str) -> Result<Subtask> {
     // simple stage detection: check if part matches known stage aliases
     for part in &parts {
         if sub.stage.is_none() {
-            let detected_stage = EtlStage::from_folder_name(&part);
+            let detected_stage = EtlStage::from_alias(&part).unwrap_or(EtlStage::Other);
             if detected_stage != EtlStage::Other {
                 sub.stage = Some(detected_stage.as_str().to_string());
                 checked_parts.push(part.clone());
