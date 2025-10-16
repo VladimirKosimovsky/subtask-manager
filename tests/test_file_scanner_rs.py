@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from python.file_manager.file_scanner import FileScanner
+from subtask_manager import FileScanner
 
 
 @pytest.mark.parametrize("extensions,expected", [
@@ -49,7 +49,7 @@ def test_scan_files_with_mock_side_effects():
     scanner = FileScanner([".txt", ".csv"])
 
     with patch.object(Path, "rglob", return_value=mock_files), \
-         patch.object(Path, "is_dir", return_value=True), \
+         patch.object(Path, "is_dir", return_value=False), \
          patch.object(Path, "is_file", new=_is_file_side_effect), \
          patch.object(Path, "resolve", new=_resolve_side_effect):
         result = list(scanner.scan_files("/fake"))

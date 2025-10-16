@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from subtask_manager import EtlStage, SystemType, TaskType, Subtask
-from common.models import Subtask
+from subtask_manager import Subtask
 from file_manager.file_classifier import FileClassifier
 
 

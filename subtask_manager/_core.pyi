@@ -150,3 +150,32 @@ class SubtaskManager:
         name: str,
         entity: str | None = None,
     ) -> Subtask: ...
+
+class FileScanner:
+    """Scanner for finding files with specific extensions."""
+    
+    def __init__(self, extensions: list[str]) -> None:
+        """
+        Initialize FileScanner with file extensions to search for.
+        
+        Args:
+            extensions: List of file extensions (with or without leading dot)
+        """
+        ...
+    
+    def scan_files(self, base_dir: str) -> list[str]:
+        """
+        Scan directory recursively for files with matching extensions.
+        
+        Args:
+            base_dir: Root directory to scan
+            
+        Returns:
+            List of absolute file paths
+        """
+        ...
+    
+    @property
+    def extensions(self) -> list[str]:
+        """Get the normalized extensions this scanner searches for."""
+        ...

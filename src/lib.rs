@@ -6,22 +6,46 @@ mod models;
 
 use crate::file_classifier::classify;
 use crate::file_loader::load;
-use crate::file_scanner::scan_files;
 use crate::models::Subtask;
 use enums::{EtlStage, SystemType, TaskType};
+use file_scanner::FileScanner;
 use strum::IntoEnumIterator;
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::PyObject;
 
-/// SubtaskManager exposed to Python
+// SubtaskManager with lazy loading
 #[pyclass]
 pub struct SubtaskManager {
     #[pyo3(get)]
     pub base_path: String,
-    subtasks: Vec<Subtask>,
+    file_paths: Vec<String>, // Store file paths instead of loaded subtasks
+    subtasks: Option<Vec<Subtask>>, // Loaded lazily
+}
+
+impl SubtaskManager {
+    // Internal Rust method for lazy loading (not exposed to Python)
+    fn load_subtasks(&mut self) -> PyResult<()> {
+        if self.subtasks.is_some() {
+            return Ok(()); // Already loaded
+        }
+
+        let mut subtasks = Vec::new();
+        for file_path in &self.file_paths {
+            match classify(&self.base_path, file_path) {
+                Ok(s) => match load(s) {
+                    Ok(loaded) => subtasks.push(loaded),
+                    Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
+                },
+                Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
+            }
+        }
+
+        self.subtasks = Some(subtasks);
+        Ok(())
+    }
 }
 
 #[pymethods]
@@ -31,7 +55,6 @@ impl SubtaskManager {
         // Build extension list from TaskType variants
         let extensions: Vec<String> = TaskType::iter()
             .flat_map(|task_type| {
-                // Collect immediately to break the reference
                 task_type
                     .extensions()
                     .iter()
@@ -39,27 +62,62 @@ impl SubtaskManager {
                     .collect::<Vec<_>>()
             })
             .collect();
-        let files = scan_files(&base_path, &extensions)
+
+        let file_scanner = FileScanner::new(extensions);
+        let file_paths = file_scanner
+            .scan_files(&base_path)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let mut subtasks = Vec::new();
-        for f in files {
-            match classify(&base_path, &f) {
-                Ok(s) => match load(s) {
-                    Ok(loaded) => subtasks.push(loaded),
-                    Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
-                },
-                Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
-            }
-        }
 
         Ok(SubtaskManager {
             base_path,
-            subtasks,
+            file_paths,
+            subtasks: None, // Not loaded yet
         })
     }
+
+    /// Getter for subtasks that loads them if needed
+    #[getter]
+    fn subtasks(&mut self, py: Python) -> PyResult<Py<PyList>> {
+        self.load_subtasks()?;
+
+        let subtasks = self.subtasks.as_ref().unwrap();
+        let py_list = PyList::empty_bound(py);
+
+        for subtask in subtasks {
+            // Since Subtask is a pyclass, wrap it in Py
+            let py_subtask = Py::new(py, subtask.clone())?;
+            py_list.append(py_subtask)?;
+        }
+
+        Ok(py_list.into())
+    }
+
+    // Get file paths as Python list
+    #[getter]
+    fn file_paths(&self, py: Python) -> PyResult<Py<PyList>> {
+        let py_list = PyList::empty_bound(py);
+
+        for file_path in &self.file_paths {
+            py_list.append(file_path)?;
+        }
+
+        Ok(py_list.into())
+    }
+
+    // Get the number of subtasks (without loading them)
+    #[getter]
+    fn num_files(&self) -> usize {
+        self.file_paths.len()
+    }
+
+    // Explicit method to load subtasks
+    fn load_all(&mut self) -> PyResult<()> {
+        self.load_subtasks()
+    }
+
     #[pyo3(signature = (etl_stage=None, entity=None, system_type=None,task_type=None, is_common=None, include_common=None))]
     fn get_tasks(
-        &self,
+        &mut self,
         py: Python,
         etl_stage: Option<String>,
         entity: Option<String>,
@@ -67,19 +125,22 @@ impl SubtaskManager {
         task_type: Option<String>,
         is_common: Option<bool>,
         include_common: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyList>> {
+        // Ensure subtasks are loaded before filtering
+        self.load_subtasks()?;
+
         let include_common = include_common.unwrap_or(true);
         let mut filtered: Vec<crate::models::Subtask> = Vec::new();
 
         let input_system_type = system_type
             .as_ref()
             .and_then(|st| SystemType::from_alias(st).ok());
-        
+
         let input_task_type = task_type
             .as_ref()
             .and_then(|tt| TaskType::from_extension(tt).ok());
 
-        for subtask in &self.subtasks {
+        for subtask in self.subtasks.as_ref().unwrap() {
             if let Some(ref es) = etl_stage {
                 if subtask.stage.as_ref() != Some(es) {
                     continue;
@@ -110,57 +171,48 @@ impl SubtaskManager {
         }
 
         if include_common {
-            for s in &self.subtasks {
+            for s in self.subtasks.as_ref().unwrap() {
                 if s.is_common && !filtered.iter().any(|x| x.path == s.path) {
                     filtered.push(s.clone());
                 }
             }
         }
 
-        // Convert to PyObject list
-        let mut py_objs: Vec<PyObject> = Vec::with_capacity(filtered.len());
-        for s in filtered {
-            let py_sub = Py::new(py, s).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-            py_objs.push(py_sub.into_py(py));
+        // Convert filtered results to Python list
+        let py_list = PyList::empty_bound(py);
+        for subtask in filtered {
+            let py_subtask = Py::new(py, subtask)?;
+            py_list.append(py_subtask)?;
         }
 
-        let py_list = PyList::empty_bound(py);
         Ok(py_list.into())
     }
 
     #[pyo3(signature = (name, entity=None))]
-    fn get_task(&self, py: Python, name: String, entity: Option<String>) -> PyResult<PyObject> {
-        for s in &self.subtasks {
+    fn get_task(&mut self, py: Python, name: String, entity: Option<String>) -> PyResult<PyObject> {
+        // Ensure subtasks are loaded before searching
+        self.load_subtasks()?;
+
+        for s in self.subtasks.as_ref().unwrap() {
             if s.name == name {
                 if let Some(ref e) = entity {
                     if s.entity.as_ref() == Some(e) {
-                        let py_sub = Py::new(py, s.clone())
-                            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                        let py_sub = Py::new(py, s.clone()).map_err(|e| {
+                            pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
+                        })?;
                         return Ok(py_sub.into_py(py));
                     }
                 } else {
                     let py_sub = Py::new(py, s.clone())
-                        .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     return Ok(py_sub.into_py(py));
                 }
             }
         }
-        Err(PyValueError::new_err(format!(
+        Err(pyo3::exceptions::PyValueError::new_err(format!(
             "Task with name '{}' not found",
             name
         )))
-    }
-
-    #[getter]
-    #[pyo3(name = "subtasks")]
-    fn subtasks_py(&self, py: Python) -> PyResult<PyObject> {
-        let mut py_objs: Vec<PyObject> = Vec::with_capacity(self.subtasks.len());
-        for s in &self.subtasks {
-            let py_sub =
-                Py::new(py, s.clone()).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-            py_objs.push(py_sub.into_py(py));
-        }
-        Ok(PyList::new_bound(py, py_objs).into())
     }
 }
 
@@ -273,5 +325,6 @@ fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EtlStage>()?;
     m.add_class::<SystemType>()?;
     m.add_class::<TaskType>()?;
+    m.add_class::<FileScanner>()?;
     Ok(())
 }
