@@ -1,4 +1,4 @@
-from subtask_manager import EtlStage, SubtaskManager, SystemType
+from subtask_manager import EtlStage, SubtaskManager, SystemType, TaskType
 
 sm:SubtaskManager = SubtaskManager(
     base_path='tests/test_data/subtasks',
@@ -15,3 +15,5 @@ print(EtlStage.Cleanup.id)
 print(SystemType.from_alias("pg")==SystemType.PostgreSQL)
 print(type(SystemType.from_alias("pg")))
 print(type(SystemType.PostgreSQL))
+
+print(TaskType.Graphql.aliases)

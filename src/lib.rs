@@ -8,13 +8,13 @@ use crate::file_classifier::classify;
 use crate::file_loader::load;
 use crate::file_scanner::scan_files;
 use crate::models::Subtask;
-use enums::{EtlStage, SystemType};
+use enums::{EtlStage, SystemType, TaskType};
+use strum::IntoEnumIterator;
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::PyObject;
-
 
 /// SubtaskManager exposed to Python
 #[pyclass]
@@ -28,11 +28,17 @@ pub struct SubtaskManager {
 impl SubtaskManager {
     #[new]
     fn new(base_path: String) -> PyResult<Self> {
-        // Build extension list from enums: hardcode same extension set here
-        let extensions = vec![
-            "sql", "psql", "tsql", "plpgsql", "sh", "ps1", "py", "gql", "graphql", "json", "jsonl",
-            "yaml", "yml",
-        ];
+        // Build extension list from TaskType variants
+        let extensions: Vec<String> = TaskType::iter()
+            .flat_map(|task_type| {
+                // Collect immediately to break the reference
+                task_type
+                    .extensions()
+                    .iter()
+                    .map(|&s| s.to_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
         let files = scan_files(&base_path, &extensions)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let mut subtasks = Vec::new();
@@ -68,6 +74,10 @@ impl SubtaskManager {
         let input_system_type = system_type
             .as_ref()
             .and_then(|st| SystemType::from_alias(st).ok());
+        
+        let input_task_type = task_type
+            .as_ref()
+            .and_then(|tt| TaskType::from_extension(tt).ok());
 
         for subtask in &self.subtasks {
             if let Some(ref es) = etl_stage {
@@ -86,7 +96,7 @@ impl SubtaskManager {
                     continue;
                 }
             }
-            if let Some(ref tt) = task_type {
+            if let Some(ref tt) = input_task_type {
                 if subtask.task_type.as_ref() != Some(tt) {
                     continue;
                 }
@@ -174,18 +184,17 @@ impl EtlStage {
     fn aliases_py(&self) -> Vec<&'static str> {
         self.aliases().to_vec()
     }
-    
+
     #[getter]
     #[pyo3(name = "id")]
     fn stage_id_py(&self) -> u8 {
         *self.id()
     }
-    
+
     #[staticmethod]
     #[pyo3(name = "from_alias")]
     fn from_alias_py(alias: String) -> PyResult<EtlStage> {
-        EtlStage::from_alias(&alias)
-            .map_err(|e| PyValueError::new_err(e))
+        EtlStage::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
     }
 }
 
@@ -215,17 +224,46 @@ impl SystemType {
     fn system_type_aliases_py(&self) -> Vec<&'static str> {
         self.aliases().to_vec()
     }
-    
+
     #[staticmethod]
     #[pyo3(name = "from_alias")]
     fn from_alias_py(alias: String) -> PyResult<SystemType> {
-        SystemType::from_alias(&alias)
-            .map_err(|e| PyValueError::new_err(e))
+        SystemType::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
+    }
+}
+
+#[pymethods]
+impl TaskType {
+    pub fn __str__(&self) -> &'static str {
+        self.name()
     }
 
+    pub fn __repr__(&self) -> String {
+        format!("TaskType.{}", self.name().to_uppercase())
+    }
 
+    #[getter]
+    #[pyo3(name = "id")]
+    fn task_type_id_py(&self) -> u8 {
+        *self.id()
+    }
 
-    
+    #[getter]
+    #[pyo3(name = "name")]
+    fn task_type_name_py(&self) -> &'static str {
+        self.name()
+    }
+    #[getter]
+    #[pyo3(name = "extensions")]
+    fn task_type_extensions_py(&self) -> Vec<&'static str> {
+        self.extensions().to_vec()
+    }
+
+    #[staticmethod]
+    #[pyo3(name = "from_extension")]
+    fn from_extension_py(extension: String) -> PyResult<TaskType> {
+        TaskType::from_extension(&extension).map_err(|e| PyValueError::new_err(e))
+    }
 }
 
 #[pymodule]
@@ -234,5 +272,6 @@ fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<models::Subtask>()?;
     m.add_class::<EtlStage>()?;
     m.add_class::<SystemType>()?;
+    m.add_class::<TaskType>()?;
     Ok(())
 }

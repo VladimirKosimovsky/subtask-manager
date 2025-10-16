@@ -1,3 +1,3 @@
-from ._core import EtlStage, Subtask, SubtaskManager, SystemType
+from ._core import EtlStage, Subtask, SubtaskManager, SystemType, TaskType
 
-__all__ = ["SubtaskManager", "Subtask", "EtlStage", "SystemType"]
+__all__ = ["SubtaskManager", "Subtask", "EtlStage", "SystemType", "TaskType"]

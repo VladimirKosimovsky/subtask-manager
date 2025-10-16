@@ -10,7 +10,7 @@ pub struct Subtask {
     #[pyo3(get)]
     pub path: String,
     #[pyo3(get)]
-    pub task_type: Option<String>,
+    pub task_type: Option<TaskType>,
     #[pyo3(get)]
     pub system_type: Option<SystemType>,
     #[pyo3(get)]
@@ -46,9 +46,9 @@ impl Subtask {
             .extension()
             .and_then(|s| s.to_str())
             .unwrap_or("");
-        let tt = TaskType::from_extension(ext);
-        if tt != TaskType::Unknown {
-            self.task_type = Some(tt.as_str().to_string());
+        let tt = TaskType::from_extension(ext).unwrap_or(TaskType::Other);
+        if tt != TaskType::Other {
+            self.task_type = Some(tt);
         }
     }
 }

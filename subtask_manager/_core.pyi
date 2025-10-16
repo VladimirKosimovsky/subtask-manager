@@ -2,6 +2,39 @@ from typing import Any
 
 from typing_extensions import override
 
+class TaskType:
+    id: int
+    name: str
+    extensions: list[str]
+    Sql:TaskType
+    Shell:TaskType
+    Powershell:TaskType
+    Python:TaskType
+    Graphql:TaskType
+    Json:TaskType
+    Yaml:TaskType
+    Other:TaskType
+    # Constructor - private to prevent direct instantiation
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    
+    @classmethod
+    def from_extension(
+        cls, extension: str,
+    ) -> SystemType: ...
+    
+    # String representation
+    @override
+    def __str__(self) -> str: ...
+    @override
+    def __repr__(self) -> str: ...
+
+    # Comparisons
+    @override
+    def __eq__(self, other: Any) -> bool: ...
+    @override
+    def __ne__(self, other: Any) -> bool: ...
+    @override
+    def __hash__(self) -> int: ...
 class SystemType:
     id: int
     name: str

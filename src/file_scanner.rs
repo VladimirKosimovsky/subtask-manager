@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::collections::HashSet;
 use walkdir::WalkDir;
 
-pub fn scan_files(base_dir: &str, extensions: &[&str]) -> Result<Vec<String>> {
+pub fn scan_files(base_dir: &str, extensions: &[String]) -> Result<Vec<String>> {
     let mut exts: HashSet<String> = HashSet::new();
     for e in extensions {
         let normalized = e.trim_start_matches('.').to_lowercase();

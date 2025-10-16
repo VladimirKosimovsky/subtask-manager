@@ -87,12 +87,13 @@ impl EtlStage {
             ])
         })
     }
-     
-    
-    pub fn from_alias(alias: &str) ->  Result<EtlStage, String> {
+
+    pub fn from_alias(alias: &str) -> Result<EtlStage, String> {
         let alias_lower = alias.to_lowercase();
         for (stage, stage_info) in Self::etl_stage_data().iter() {
-            if stage_info.name == alias_lower || stage_info.aliases.iter().any(|&a| a == alias_lower) {
+            if stage_info.name == alias_lower
+                || stage_info.aliases.iter().any(|&a| a == alias_lower)
+            {
                 return Ok(*stage);
             }
         }
@@ -113,7 +114,7 @@ impl EtlStage {
     pub fn id(&self) -> &'static u8 {
         &Self::etl_stage_data()[self].id
     }
-    
+
     pub fn name(&self) -> &'static str {
         &Self::etl_stage_data()[self].name
     }
@@ -227,8 +228,9 @@ impl SystemType {
     pub fn from_alias(alias: &str) -> Result<SystemType, String> {
         let alias_lower = alias.to_lowercase();
         for (system_type, system_type_info) in Self::system_type_data().iter() {
-            if system_type_info.name == alias_lower 
-                || system_type_info.aliases.iter().any(|&a| a == alias_lower) {
+            if system_type_info.name == alias_lower
+                || system_type_info.aliases.iter().any(|&a| a == alias_lower)
+            {
                 return Ok(*system_type);
             }
         }
@@ -259,8 +261,15 @@ impl SystemType {
     }
 }
 
+#[derive(Debug, Clone)]
+struct TaskTypeData {
+    id: &'static u8,
+    name: &'static str,
+    extensions: Vec<&'static str>,
+}
+
 #[pyclass(eq, eq_int)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, EnumIter, Serialize, Deserialize)]
 pub enum TaskType {
     Sql,
     Shell,
@@ -269,21 +278,91 @@ pub enum TaskType {
     Graphql,
     Json,
     Yaml,
-    Unknown,
+    Other,
 }
 
 impl TaskType {
-    pub fn from_extension(ext: &str) -> TaskType {
-        match ext.to_lowercase().as_str() {
-            "sql" | "psql" | "tsql" | "plpgsql" => TaskType::Sql,
-            "sh" => TaskType::Shell,
-            "ps1" => TaskType::Powershell,
-            "py" => TaskType::Python,
-            "graphql" | "gql" => TaskType::Graphql,
-            "json" | "jsonl" => TaskType::Json,
-            "yaml" | "yml" => TaskType::Yaml,
-            _ => TaskType::Unknown,
+    fn task_type_data() -> &'static HashMap<TaskType, TaskTypeData> {
+        static DATA: OnceLock<HashMap<TaskType, TaskTypeData>> = OnceLock::new();
+        DATA.get_or_init(|| {
+            HashMap::from([
+                (
+                    TaskType::Sql,
+                    TaskTypeData {
+                        id: &0,
+                        name: "sql",
+                        extensions: vec!["sql", "psql", "tsql", "plpgsql"],
+                    },
+                ),
+                (
+                    TaskType::Shell,
+                    TaskTypeData {
+                        id: &1,
+                        name: "shell",
+                        extensions: vec!["sh"],
+                    },
+                ),
+                (
+                    TaskType::Powershell,
+                    TaskTypeData {
+                        id: &2,
+                        name: "powershell",
+                        extensions: vec!["ps1"],
+                    },
+                ),
+                (
+                    TaskType::Python,
+                    TaskTypeData {
+                        id: &3,
+                        name: "python",
+                        extensions: vec!["py"],
+                    },
+                ),
+                (
+                    TaskType::Graphql,
+                    TaskTypeData {
+                        id: &4,
+                        name: "graphql",
+                        extensions: vec!["graphql", "gql"],
+                    },
+                ),
+                (
+                    TaskType::Json,
+                    TaskTypeData {
+                        id: &5,
+                        name: "json",
+                        extensions: vec!["json", "jsonl"],
+                    },
+                ),
+                (
+                    TaskType::Yaml,
+                    TaskTypeData {
+                        id: &6,
+                        name: "yaml",
+                        extensions: vec!["yaml", "yml"],
+                    },
+                ),
+                (
+                    TaskType::Other,
+                    TaskTypeData {
+                        id: &8,
+                        name: "other",
+                        extensions: vec![],
+                    },
+                ),
+            ])
+        })
+    }
+    pub fn from_extension(alias: &str) -> Result<TaskType, String> {
+        let alias_lower = alias.to_lowercase();
+        for (task_type, task_type_info) in Self::task_type_data().iter() {
+            if task_type_info.name == alias_lower
+                || task_type_info.extensions.iter().any(|&a| a == alias_lower)
+            {
+                return Ok(*task_type);
+            }
         }
+        Err(format!("Unknown task type alias: {}", alias))
     }
 
     pub fn as_str(&self) -> &str {
@@ -295,7 +374,17 @@ impl TaskType {
             TaskType::Graphql => "GRAPHQL",
             TaskType::Json => "JSON",
             TaskType::Yaml => "YAML",
-            TaskType::Unknown => "UNKNOWN",
+            TaskType::Other => "OTHER",
         }
+    }
+    pub fn id(&self) -> &'static u8 {
+        &Self::task_type_data()[self].id
+    }
+    pub fn name(&self) -> &'static str {
+        &Self::task_type_data()[self].name
+    }
+
+    pub fn extensions(&self) -> &Vec<&'static str> {
+        &Self::task_type_data()[self].extensions
     }
 }

@@ -1,6 +1,28 @@
 import pytest
 
-from subtask_manager import EtlStage, SubtaskManager, SystemType
+from subtask_manager import EtlStage, SystemType, TaskType
+
+
+# ------------------------
+# TaskType tests
+# ------------------------
+def test_tasktype_properties():
+    assert TaskType.Sql.id == 0
+    assert "sql" in TaskType.Sql.extensions
+    assert TaskType.Python.id == 3
+    assert "py" in TaskType.Python.extensions
+
+
+def test_tasktype_from_extension_valid():
+    assert TaskType.from_extension("sql") == TaskType.Sql
+    assert TaskType.from_extension("py") == TaskType.Python
+    assert TaskType.from_extension("GRAPHQL") == TaskType.Graphql  # case-insensitive
+
+
+def test_tasktype_from_extension_invalid():
+    with pytest.raises(ValueError, match="Unknown task type"):
+        _ = TaskType.from_extension("exe")
+
 
 
 # ------------------------

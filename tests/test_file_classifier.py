@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from common.enums import EtlStage, SystemType, TaskType
+from subtask_manager import EtlStage, SystemType, TaskType, Subtask
 from common.models import Subtask
 from file_manager.file_classifier import FileClassifier
 
