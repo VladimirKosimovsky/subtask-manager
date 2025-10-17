@@ -23,7 +23,7 @@ def test_scan_files(tmp_path: Path, extensions:list[str], expected:list[str]):
     scanner = FileScanner(extensions)
 
     # Act
-    result = scanner.scan_files(str(tmp_path))
+    result = scanner.scan_files(tmp_path)
 
     # Assert
     found_files = {os.path.basename(p) for p in result}
@@ -48,11 +48,18 @@ def test_scan_files_with_mock_side_effects():
 
     scanner = FileScanner([".txt", ".csv"])
 
-    with patch.object(Path, "rglob", return_value=mock_files), \
-         patch.object(Path, "is_dir", return_value=False), \
-         patch.object(Path, "is_file", new=_is_file_side_effect), \
-         patch.object(Path, "resolve", new=_resolve_side_effect):
-        result = list(scanner.scan_files("/fake"))
+    with (patch.object(Path, "rglob", return_value=mock_files), 
+         patch.object(Path, "is_dir", return_value=True), 
+         patch.object(Path, "is_file", new=_is_file_side_effect), 
+         patch.object(Path, "resolve", new=_resolve_side_effect)
+        ):
+        sbp = Path("/fake")
+        sbp = sbp.resolve()
+        for file in sbp.rglob("*"):
+            if file.is_file():
+                print(file)
+        
+        result = list(scanner.scan_files(sbp))
 
     assert set(result) == {
         Path("/fake/a.txt").resolve(),

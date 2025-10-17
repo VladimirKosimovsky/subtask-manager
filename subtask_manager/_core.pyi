@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 from typing_extensions import override
@@ -135,7 +136,7 @@ class SubtaskManager:
     base_path: str
     subtasks: list[Subtask]
 
-    def __init__(self, base_path: str) -> None: ...
+    def __init__(self, base_path: str | Path) -> None: ...
     def get_tasks(
         self,
         etl_stage: str | None = None,
@@ -163,7 +164,7 @@ class FileScanner:
         """
         ...
     
-    def scan_files(self, base_dir: str) -> list[str]:
+    def scan_files(self, base_dir: str | Path) -> list[str]:
         """
         Scan directory recursively for files with matching extensions.
         

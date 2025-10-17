@@ -20,10 +20,23 @@ impl FileScanner {
         FileScanner { extensions: exts }
     }
 
-    pub fn scan_files(&self, base_dir: &str) -> PyResult<Vec<String>> {
-        let mut found: Vec<String> = Vec::new();
-
-        for entry in WalkDir::new(base_dir).into_iter().filter_map(|e| e.ok()) {
+    pub fn scan_files(&self, base_dir: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
+           // Convert base_dir to string, supporting both str and pathlib.Path
+           let base_dir_str = if let Ok(path_str) = base_dir.extract::<String>() {
+               // Direct string
+               path_str
+           } else if let Ok(path_obj) = base_dir.call_method0("__str__") {
+               // pathlib.Path or other object with __str__ method
+               path_obj.extract::<String>()?
+           } else {
+               return Err(pyo3::exceptions::PyValueError::new_err(
+                   "base_dir must be a string or pathlib.Path object"
+               ));
+           };
+           
+           let mut found: Vec<String> = Vec::new();
+   
+           for entry in WalkDir::new(&base_dir_str).into_iter().filter_map(|e| e.ok()) {
             if entry.file_type().is_file() {
                 if let Some(ext) = entry.path().extension().and_then(|s| s.to_str()) {
                     if self.extensions.contains(&ext.to_lowercase()) {

@@ -51,29 +51,42 @@ impl SubtaskManager {
 #[pymethods]
 impl SubtaskManager {
     #[new]
-    fn new(base_path: String) -> PyResult<Self> {
-        // Build extension list from TaskType variants
-        let extensions: Vec<String> = TaskType::iter()
-            .flat_map(|task_type| {
-                task_type
-                    .extensions()
-                    .iter()
-                    .map(|&s| s.to_string())
-                    .collect::<Vec<_>>()
+    fn new(base_path: &Bound<'_, PyAny>) -> PyResult<Self> {
+            // Convert base_path to string, supporting both str and pathlib.Path
+            let base_path_str = if let Ok(path_str) = base_path.extract::<String>() {
+                // Direct string
+                path_str
+            } else if let Ok(path_obj) = base_path.call_method0("__str__") {
+                // pathlib.Path or other object with __str__ method
+                path_obj.extract::<String>()?
+            } else {
+                return Err(PyValueError::new_err(
+                    "base_path must be a string or pathlib.Path object"
+                ));
+            };
+            
+            // Build extension list from TaskType variants
+            let extensions: Vec<String> = TaskType::iter()
+                .flat_map(|task_type| {
+                    task_type
+                        .extensions()
+                        .iter()
+                        .map(|&s| s.to_string())
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+    
+            let file_scanner = FileScanner::new(extensions);
+            let file_paths = file_scanner
+                .scan_files(&base_path)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    
+            Ok(SubtaskManager {
+                base_path: base_path_str,
+                file_paths,
+                subtasks: None, // Not loaded yet
             })
-            .collect();
-
-        let file_scanner = FileScanner::new(extensions);
-        let file_paths = file_scanner
-            .scan_files(&base_path)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-
-        Ok(SubtaskManager {
-            base_path,
-            file_paths,
-            subtasks: None, // Not loaded yet
-        })
-    }
+        }
 
     /// Getter for subtasks that loads them if needed
     #[getter]
