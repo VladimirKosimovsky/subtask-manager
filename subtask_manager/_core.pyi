@@ -135,8 +135,10 @@ class Subtask:
 class SubtaskManager:
     base_path: str
     subtasks: list[Subtask]
-
+    classifier: FileClassifier
+    
     def __init__(self, base_path: str | Path) -> None: ...
+
     def get_tasks(
         self,
         etl_stage: str | None = None,
@@ -151,6 +153,7 @@ class SubtaskManager:
         name: str,
         entity: str | None = None,
     ) -> Subtask: ...
+    
 
 class FileScanner:
     """Scanner for finding files with specific extensions."""
@@ -169,7 +172,7 @@ class FileScanner:
         Scan directory recursively for files with matching extensions.
         
         Args:
-            base_dir: Root directory to scan
+            base_dir: Root directory to scan (string path or pathlib.Path)
             
         Returns:
             List of absolute file paths
@@ -180,3 +183,35 @@ class FileScanner:
     def extensions(self) -> list[str]:
         """Get the normalized extensions this scanner searches for."""
         ...
+
+class FileClassifier:
+    """Classifier for converting file paths into Subtask objects based on folder structure."""
+    
+    base_path: str
+    
+    def __init__(self, base_path: str | Path) -> None:
+        """
+        Initialize FileClassifier with a base path.
+        
+        Args:
+            base_path: Base directory path (string path or pathlib.Path)
+        """
+        ...
+    
+    def classify(self, file_path: str | Path) -> Subtask:
+        """
+        Classify a file path into a Subtask based on its location relative to base_path.
+        
+        Args:
+            file_path: Path to the file to classify (string path or pathlib.Path)
+            
+        Returns:
+            A Subtask object with extracted metadata
+            
+        Raises:
+            RuntimeError: If the folder structure is invalid or task type cannot be determined
+        """
+        ...
+    
+    @override
+    def __repr__(self) -> str: ...

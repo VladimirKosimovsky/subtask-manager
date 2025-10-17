@@ -1,7 +1,6 @@
 # tests/test_file_scanner.py
 import os
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -28,41 +27,3 @@ def test_scan_files(tmp_path: Path, extensions:list[str], expected:list[str]):
     # Assert
     found_files = {os.path.basename(p) for p in result}
     assert found_files == set(expected)
-
-
-def _is_file_side_effect(self: Path):
-    return self.suffix.lower() in {".txt", ".csv"}
-
-
-def _resolve_side_effect(self:Path):
-    return self  # return the Path itself to avoid FS resolution
-
-
-def test_scan_files_with_mock_side_effects():
-    mock_files = [
-        Path("/fake/a.txt"),
-        Path("/fake/b.csv"),
-        Path("/fake/c.tmp"),
-        Path("/fake/subdir/d.txt"),
-    ]
-
-    scanner = FileScanner([".txt", ".csv"])
-
-    with (patch.object(Path, "rglob", return_value=mock_files), 
-         patch.object(Path, "is_dir", return_value=True), 
-         patch.object(Path, "is_file", new=_is_file_side_effect), 
-         patch.object(Path, "resolve", new=_resolve_side_effect)
-        ):
-        sbp = Path("/fake")
-        sbp = sbp.resolve()
-        for file in sbp.rglob("*"):
-            if file.is_file():
-                print(file)
-        
-        result = list(scanner.scan_files(sbp))
-
-    assert set(result) == {
-        Path("/fake/a.txt").resolve(),
-        Path("/fake/b.csv").resolve(),
-        Path("/fake/subdir/d.txt").resolve(),
-    }

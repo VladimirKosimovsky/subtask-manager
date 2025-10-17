@@ -4,7 +4,7 @@ mod file_loader;
 mod file_scanner;
 mod models;
 
-use crate::file_classifier::classify;
+use crate::file_classifier::FileClassifier;
 use crate::file_loader::load;
 use crate::models::Subtask;
 use enums::{EtlStage, SystemType, TaskType};
@@ -23,6 +23,7 @@ pub struct SubtaskManager {
     pub base_path: String,
     file_paths: Vec<String>, // Store file paths instead of loaded subtasks
     subtasks: Option<Vec<Subtask>>, // Loaded lazily
+    classifier: FileClassifier, // Classifier instance for lazy loading
 }
 
 impl SubtaskManager {
@@ -34,7 +35,7 @@ impl SubtaskManager {
 
         let mut subtasks = Vec::new();
         for file_path in &self.file_paths {
-            match classify(&self.base_path, file_path) {
+            match self.classifier.classify_internal(file_path) {
                 Ok(s) => match load(s) {
                     Ok(loaded) => subtasks.push(loaded),
                     Err(e) => return Err(pyo3::exceptions::PyRuntimeError::new_err(e.to_string())),
@@ -52,41 +53,47 @@ impl SubtaskManager {
 impl SubtaskManager {
     #[new]
     fn new(base_path: &Bound<'_, PyAny>) -> PyResult<Self> {
-            // Convert base_path to string, supporting both str and pathlib.Path
-            let base_path_str = if let Ok(path_str) = base_path.extract::<String>() {
-                // Direct string
-                path_str
-            } else if let Ok(path_obj) = base_path.call_method0("__str__") {
-                // pathlib.Path or other object with __str__ method
-                path_obj.extract::<String>()?
-            } else {
-                return Err(PyValueError::new_err(
-                    "base_path must be a string or pathlib.Path object"
-                ));
-            };
-            
-            // Build extension list from TaskType variants
-            let extensions: Vec<String> = TaskType::iter()
-                .flat_map(|task_type| {
-                    task_type
-                        .extensions()
-                        .iter()
-                        .map(|&s| s.to_string())
-                        .collect::<Vec<_>>()
-                })
-                .collect();
-    
-            let file_scanner = FileScanner::new(extensions);
-            let file_paths = file_scanner
-                .scan_files(&base_path)
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-    
-            Ok(SubtaskManager {
-                base_path: base_path_str,
-                file_paths,
-                subtasks: None, // Not loaded yet
+        // Convert base_path to string, supporting both str and pathlib.Path
+        let base_path_str = if let Ok(path_str) = base_path.extract::<String>() {
+            // Direct string
+            path_str
+        } else if let Ok(path_obj) = base_path.call_method0("__str__") {
+            // pathlib.Path or other object with __str__ method
+            path_obj.extract::<String>()?
+        } else {
+            return Err(PyValueError::new_err(
+                "base_path must be a string or pathlib.Path object",
+            ));
+        };
+
+        // Build extension list from TaskType variants
+        let extensions: Vec<String> = TaskType::iter()
+            .flat_map(|task_type| {
+                task_type
+                    .extensions()
+                    .iter()
+                    .map(|&s| s.to_string())
+                    .collect::<Vec<_>>()
             })
-        }
+            .collect();
+
+        let file_scanner = FileScanner::new(extensions);
+        let file_paths = file_scanner
+            .scan_files(&base_path)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+        // Create classifier instance for lazy loading
+        let classifier = FileClassifier {
+            base_path: base_path_str.clone(),
+        };
+
+        Ok(SubtaskManager {
+            base_path: base_path_str,
+            file_paths,
+            subtasks: None, // Not loaded yet
+            classifier,
+        })
+    }
 
     /// Getter for subtasks that loads them if needed
     #[getter]
@@ -121,6 +128,12 @@ impl SubtaskManager {
     #[getter]
     fn num_files(&self) -> usize {
         self.file_paths.len()
+    }
+
+    // Get the classifier instance
+    #[getter]
+    fn classifier(&self) -> FileClassifier {
+        self.classifier.clone()
     }
 
     // Explicit method to load subtasks
@@ -339,5 +352,6 @@ fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SystemType>()?;
     m.add_class::<TaskType>()?;
     m.add_class::<FileScanner>()?;
+    m.add_class::<FileClassifier>()?;
     Ok(())
 }

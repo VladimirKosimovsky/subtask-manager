@@ -1,6 +1,14 @@
 from pathlib import Path
 
-from subtask_manager import EtlStage, FileScanner, SubtaskManager, SystemType, TaskType
+from subtask_manager import (
+    EtlStage,
+    FileClassifier,
+    FileScanner,
+    Subtask,
+    SubtaskManager,
+    SystemType,
+    TaskType,
+)
 
 sm: SubtaskManager = SubtaskManager(
     base_path="tests/test_data/subtasks",
@@ -31,3 +39,6 @@ print(manager1.base_path)
 # Using pathlib.Path
 manager2 = SubtaskManager(Path("tests/test_data/subtasks"))
 print(manager2.base_path)
+
+fcs = FileClassifier(Path("tests/test_data/subtasks"))
+print(fcs.base_path)
