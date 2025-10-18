@@ -1,0 +1,7 @@
+# .gitattributes
+* text=auto
+*.rs text
+*.js text
+*.html text
+*.css text
+# Add other file types as needed
