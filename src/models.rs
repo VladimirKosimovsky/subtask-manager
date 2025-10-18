@@ -1,4 +1,4 @@
-use crate::enums::{SystemType, TaskType, EtlStage};
+use crate::enums::{EtlStage, SystemType, TaskType};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 

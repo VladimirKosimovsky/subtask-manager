@@ -2,12 +2,9 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, patch
 
-from pydantic_core.core_schema import CustomErrorSchema
 import pytest
 
-from common.enums import EtlStage, SystemType, TaskType
-from common.models import Subtask
-from subtask_manager.subtask_manager import SubtaskManager
+from subtask_manager import EtlStage, Subtask, SubtaskManager, SystemType, TaskType
 
 
 # --------------------------
@@ -40,19 +37,22 @@ def test_discovery_and_classification(tmp_path: Path):
 
     assert len(manager.subtasks) == 3
 
-    sql_task = next(s for s in manager.subtasks if s.name == "get_customers")
-    assert sql_task.stage == EtlStage.EXTRACT
-    assert sql_task.system_type == SystemType.PG
-    assert sql_task.task_type == TaskType.SQL
+    for subtask in manager.subtasks:
+        _ = subtask.name
+    
+    sql_task = next(s for s in manager.subtasks if s.name == "get_customers.sql")
+    assert sql_task.stage == EtlStage.Extract
+    assert sql_task.system_type == SystemType.PostgreSQL
+    assert sql_task.task_type == TaskType.Sql
     assert sql_task.entity == "customers"
     command = sql_task.command
     assert command is not None
     assert "SELECT" in command
 
     py_task = next(s for s in manager.subtasks if s.name == "sales")
-    assert py_task.stage == EtlStage.TRANSFORM
-    assert py_task.system_type == SystemType.DUCK
-    assert py_task.task_type == TaskType.PYTHON
+    assert py_task.stage == EtlStage.Transform
+    assert py_task.system_type == SystemType.Duckdb
+    assert py_task.task_type == TaskType.Python
     command = py_task.command
     assert command is not None
     assert "print" in command
@@ -66,8 +66,8 @@ def test_get_tasks_by_filters(tmp_path: Path):
     manager = SubtaskManager(base)
 
     extract_pg = manager.get_tasks(
-        etl_stage=EtlStage.EXTRACT,
-        system_type=SystemType.PG,
+        etl_stage=EtlStage.Extract,
+        system_type=SystemType.PostgreSQL,
     )
     assert len(extract_pg) == 2  # includes common file
     assert all(isinstance(v, Subtask) for v in extract_pg.values())

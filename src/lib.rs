@@ -157,11 +157,11 @@ impl SubtaskManager {
 
         let include_common = include_common.unwrap_or(true);
         let mut filtered: Vec<crate::models::Subtask> = Vec::new();
-        
+
         let input_etl_stage = etl_stage
             .as_ref()
             .and_then(|es| EtlStage::from_alias(es).ok());
-        
+
         let input_system_type = system_type
             .as_ref()
             .and_then(|st| SystemType::from_alias(st).ok());
@@ -172,9 +172,9 @@ impl SubtaskManager {
 
         for subtask in self.subtasks.as_ref().unwrap() {
             if let Some(ref es) = input_etl_stage {
-                   if subtask.stage.as_ref() != Some(es) {
-                       continue;
-                   }
+                if subtask.stage.as_ref() != Some(es) {
+                    continue;
+                }
             }
             if let Some(ref en) = entity {
                 if subtask.entity.as_ref() != Some(en) {

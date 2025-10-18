@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from subtask_manager import EtlStage, SystemType, TaskType, Subtask
-from subtask_manager import Subtask
-from file_manager.file_classifier import FileClassifier
+from python.common.enums import EtlStage, SystemType, TaskType
+from python.common.models import Subtask
+from python.file_manager.file_classifier import FileClassifier
 
 
 def test_classify_simple_sql_file(tmp_path: Path):
