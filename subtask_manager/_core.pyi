@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any
 
 from typing_extensions import override
 
@@ -16,7 +15,7 @@ class TaskType:
     Yaml:TaskType
     Other:TaskType
     # Constructor - private to prevent direct instantiation
-    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
     
     @classmethod
     def from_extension(
@@ -31,9 +30,9 @@ class TaskType:
 
     # Comparisons
     @override
-    def __eq__(self, other: Any) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
     @override
-    def __ne__(self, other: Any) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
     @override
     def __hash__(self) -> int: ...
 class SystemType:
@@ -50,7 +49,7 @@ class SystemType:
     Vertica: SystemType
     Other: SystemType
     # Constructor - private to prevent direct instantiation
-    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
     
     @classmethod
     def from_alias(
@@ -65,9 +64,9 @@ class SystemType:
 
     # Comparisons
     @override
-    def __eq__(self, other: Any) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
     @override
-    def __ne__(self, other: Any) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
     @override
     def __hash__(self) -> int: ...
     
@@ -85,7 +84,7 @@ class EtlStage:
     Postprocessing: EtlStage
 
     # Constructor - private to prevent direct instantiation
-    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
 
     # String representation
     @override
@@ -95,9 +94,9 @@ class EtlStage:
 
     # Comparisons
     @override
-    def __eq__(self, other: Any) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
     @override
-    def __ne__(self, other: Any) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
     @override
     def __hash__(self) -> int: ...
     
@@ -141,10 +140,10 @@ class SubtaskManager:
 
     def get_tasks(
         self,
-        etl_stage: str | None = None,
+        etl_stage: EtlStage | None = None,
         entity: str | None = None,
-        system_type: str | None = None,
-        task_type: str | None = None,
+        system_type: SystemType | None = None,
+        task_type: TaskType | None = None,
         is_common: bool | None = None,
         include_common: bool | None = True,
     ) -> list[Subtask]: ...

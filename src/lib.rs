@@ -141,14 +141,14 @@ impl SubtaskManager {
         self.load_subtasks()
     }
 
-    #[pyo3(signature = (etl_stage=None, entity=None, system_type=None,task_type=None, is_common=None, include_common=None))]
+    #[pyo3(signature = (etl_stage=None, entity=None, system_type=None, task_type=None, is_common=None, include_common=None))]
     fn get_tasks(
         &mut self,
         py: Python,
-        etl_stage: Option<String>,
+        etl_stage: Option<EtlStage>,
         entity: Option<String>,
-        system_type: Option<String>,
-        task_type: Option<String>,
+        system_type: Option<SystemType>,
+        task_type: Option<TaskType>,
         is_common: Option<bool>,
         include_common: Option<bool>,
     ) -> PyResult<Py<PyList>> {
@@ -158,20 +158,8 @@ impl SubtaskManager {
         let include_common = include_common.unwrap_or(true);
         let mut filtered: Vec<crate::models::Subtask> = Vec::new();
 
-        let input_etl_stage = etl_stage
-            .as_ref()
-            .and_then(|es| EtlStage::from_alias(es).ok());
-
-        let input_system_type = system_type
-            .as_ref()
-            .and_then(|st| SystemType::from_alias(st).ok());
-
-        let input_task_type = task_type
-            .as_ref()
-            .and_then(|tt| TaskType::from_extension(tt).ok());
-
         for subtask in self.subtasks.as_ref().unwrap() {
-            if let Some(ref es) = input_etl_stage {
+            if let Some(ref es) = etl_stage {
                 if subtask.stage.as_ref() != Some(es) {
                     continue;
                 }
@@ -181,13 +169,12 @@ impl SubtaskManager {
                     continue;
                 }
             }
-            // Filter by system_type using the converted enum
-            if let Some(ref input_st) = input_system_type {
-                if subtask.system_type.as_ref() != Some(input_st) {
+            if let Some(ref st) = system_type {
+                if subtask.system_type.as_ref() != Some(st) {
                     continue;
                 }
             }
-            if let Some(ref tt) = input_task_type {
+            if let Some(ref tt) = task_type {
                 if subtask.task_type.as_ref() != Some(tt) {
                     continue;
                 }
