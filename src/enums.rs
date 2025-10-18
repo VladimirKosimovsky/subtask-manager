@@ -12,7 +12,7 @@ struct EtlStageData {
 }
 
 #[pyclass(eq, eq_int)]
-#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, Deserialize, Serialize)]
 pub enum EtlStage {
     Setup,
     Extract,

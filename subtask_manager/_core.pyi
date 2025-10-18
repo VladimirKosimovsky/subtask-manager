@@ -107,10 +107,10 @@ class EtlStage:
     ) -> EtlStage: ...
 
 class Subtask:
-    stage: str | None
+    stage: EtlStage | None
     entity: str | None
-    system_type: str | None
-    task_type: str | None
+    system_type: SystemType | None
+    task_type: TaskType | None
     is_common: bool
     name: str
     path: str
@@ -118,10 +118,10 @@ class Subtask:
 
     def __init__(
         self,
-        stage: str | None = None,
+        stage: EtlStage | None = None,
         entity: str | None = None,
-        system_type: str | None = None,
-        task_type: str | None = None,
+        system_type: SystemType | None = None,
+        task_type: TaskType | None = None,
         is_common: bool = False,
         name: str = "",
         path: str = "",

@@ -44,7 +44,7 @@ impl FileClassifier {
             if sub.stage.is_none() {
                 let detected_stage = EtlStage::from_alias(&part).unwrap_or(EtlStage::Other);
                 if detected_stage != EtlStage::Other {
-                    sub.stage = Some(detected_stage.as_str().to_string());
+                    sub.stage = Some(detected_stage);
                     checked_parts.push(part.clone());
                     break;
                 }
@@ -122,7 +122,7 @@ impl FileClassifier {
         };
 
         self.classify_internal(&file_path_str)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     #[getter]

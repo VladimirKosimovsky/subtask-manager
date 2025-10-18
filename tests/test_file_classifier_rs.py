@@ -19,7 +19,7 @@ def test_classify_simple_sql_file(tmp_path: Path):
     subtask = classifier.classify(file_path)
 
     assert isinstance(subtask, Subtask)
-    # assert subtask.stage == EtlStage.Extract
+    assert subtask.stage == EtlStage.Extract
     assert subtask.system_type == SystemType.PostgreSQL
     assert subtask.task_type == TaskType.Sql
     assert subtask.entity == "customers"
@@ -30,18 +30,18 @@ def test_classify_common_file(tmp_path: Path):
     file_path = tmp_path / "utils.py"
     _ = file_path.write_text("print('common')")
 
-    classifier = FileClassifier()
-    subtask = classifier.classify(tmp_path, file_path)
+    classifier = FileClassifier(tmp_path)
+    subtask = classifier.classify(file_path)
 
     assert subtask.is_common is True
-    assert subtask.task_type == TaskType.PYTHON
+    assert subtask.task_type == TaskType.Python
 
 
 def test_classify_invalid_extension(tmp_path: Path):
     file_path = tmp_path / "weirdfile.unknown"
     _ = file_path.write_text("???")
 
-    classifier = FileClassifier()
+    classifier = FileClassifier(tmp_path)
 
     with pytest.raises(ValueError, match="Unknown task type"):
-        _ =  classifier.classify(tmp_path, file_path)
+        _ =  classifier.classify(file_path)

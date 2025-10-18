@@ -1,4 +1,4 @@
-use crate::enums::{SystemType, TaskType};
+use crate::enums::{SystemType, TaskType, EtlStage};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,7 @@ pub struct Subtask {
     #[pyo3(get)]
     pub system_type: Option<SystemType>,
     #[pyo3(get)]
-    pub stage: Option<String>,
+    pub stage: Option<EtlStage>,
     #[pyo3(get)]
     pub entity: Option<String>,
     #[pyo3(get)]
