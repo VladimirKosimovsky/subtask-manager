@@ -1,0 +1,33 @@
+[project]
+name = "subtask-manager"
+version = "0.1.0"
+description = "ETL Subtask management library written in Rust"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Din Gior", email = "dingior10@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.11.9",
+]
+
+[project.scripts]
+subtask-manager = "subtask_manager:main"
+
+[tool.maturin]
+module-name = "subtask_manager._core"
+python-packages = ["subtask_manager"]
+python-source = ""
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[dependency-groups]
+dev = [
+    "maturin>=1.9.5",
+    "pyo3-stubgen>=0.3.0",
+    "pytest>=8.4.2",
+    "ruff>=0.13.2",
+]
