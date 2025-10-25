@@ -1,10 +1,11 @@
 [project]
 name = "subtask-manager"
 version = "0.1.0"
-description = "Add your description here"
+description = "ETL Subtask management library written in Rust"
 readme = "README.md"
+license = { text = "MIT" }
 authors = [
-    { name = "Vladimir Kosimovsky", email = "vladimir.kosimovsky@outlook.com" }
+    { name = "Din Gior", email = "dingior10@gmail.com" }
 ]
 requires-python = ">=3.11"
 dependencies = [
