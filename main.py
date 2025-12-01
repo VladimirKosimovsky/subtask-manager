@@ -13,6 +13,22 @@ from subtask_manager import (
 sm: SubtaskManager = SubtaskManager(
     base_path="tests/test_data/subtasks",
 )
+
+subtask:Subtask = sm.get_task("attach_pg_to_duckdb_with_params.sql")
+_ = subtask.apply_parameters(
+    {
+        "db_name": "dwh",
+        "host": "localhost",
+        "port": "5432",
+        "user": "postgres",
+        "password": "password",
+    }
+)
+
+print(subtask.command)
+
+
+
 for subtask in sm.subtasks:
     print(subtask.entity)
 

@@ -130,6 +130,15 @@ class Subtask:
     def __repr__(self) -> str: ...
     @override
     def __str__(self) -> str: ...
+    
+    def apply_parameters(
+        self, 
+        params:dict, 
+        styles:list[str] | None = None, 
+        ignore_missing:bool = False
+    ) -> None:
+        ...
+        
 
 class SubtaskManager:
     base_path: str

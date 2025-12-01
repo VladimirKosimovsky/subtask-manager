@@ -1,8 +1,99 @@
+use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::OnceLock;
 use strum_macros::EnumIter;
+
+#[pyclass(eq, eq_int)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, Serialize, Deserialize)]
+pub enum ParamType {
+    /// {name}
+    Curly,
+    /// $name
+    Dollar,
+    /// ${name}
+    DollarBrace,
+    /// __NAME__ (often all-caps)
+    DoubleUnderscore,
+    /// %name%
+    Percent,
+    /// <name>
+    Angle,
+    /// any custom regex (not exposed to python directly)
+    Other,
+}
+
+impl ParamType {
+    /// Return a compiled Regex for this ParamType. The capture group "name" holds parameter name.
+    pub fn regex(&self) -> &'static Regex {
+        static RE_CURLEY: OnceCell<Regex> = OnceCell::new();
+        static RE_DOLLAR: OnceCell<Regex> = OnceCell::new();
+        static RE_DOLLAR_BRACE: OnceCell<Regex> = OnceCell::new();
+        static RE_DOUBLE_UNDERSCORE: OnceCell<Regex> = OnceCell::new();
+        static RE_PERCENT: OnceCell<Regex> = OnceCell::new();
+        static RE_ANGLE: OnceCell<Regex> = OnceCell::new();
+
+        match self {
+            ParamType::Curly => RE_CURLEY.get_or_init(|| {
+                Regex::new(r"\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
+            }),
+            ParamType::Dollar => RE_DOLLAR.get_or_init(|| {
+                // $name but not $$ or $1 etc; stop at word boundary
+                Regex::new(r"(?P<full>\$(?P<name>[A-Za-z_][A-Za-z0-9_.-]*))\b")
+                    .expect("valid regex")
+            }),
+            ParamType::DollarBrace => RE_DOLLAR_BRACE.get_or_init(|| {
+                // ${name}
+                Regex::new(r"\$\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
+            }),
+            ParamType::DoubleUnderscore => RE_DOUBLE_UNDERSCORE.get_or_init(|| {
+                // __NAME__
+                Regex::new(r"__(?P<name>[A-Za-z0-9_]+)__").expect("valid regex")
+            }),
+            ParamType::Percent => RE_PERCENT
+                .get_or_init(|| Regex::new(r"%(?P<name>[A-Za-z0-9_.:-]+)%").expect("valid regex")),
+            ParamType::Angle => RE_ANGLE
+                .get_or_init(|| Regex::new(r"<(?P<name>[A-Za-z0-9_.:-]+)>").expect("valid regex")),
+            ParamType::Other => RE_CURLEY.get_or_init(|| {
+                Regex::new(r"\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
+            }),
+        }
+    }
+
+    /// Friendly display name
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ParamType::Curly => "curly {name}",
+            ParamType::Dollar => "dollar $name",
+            ParamType::DollarBrace => "dollar_brace ${name}",
+            ParamType::DoubleUnderscore => "double_underscore __NAME__",
+            ParamType::Percent => "percent %name%",
+            ParamType::Angle => "angle <name>",
+            ParamType::Other => "other",
+        }
+    }
+
+    /// Default list of param types to try when user doesn't specify
+    pub fn default_order() -> Vec<ParamType> {
+        vec![
+            ParamType::DollarBrace,
+            ParamType::Curly,
+            ParamType::Dollar,
+            ParamType::DoubleUnderscore,
+            ParamType::Percent,
+            ParamType::Angle,
+        ]
+    }
+}
+
+impl fmt::Display for ParamType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 #[derive(Debug, Clone)]
 struct EtlStageData {

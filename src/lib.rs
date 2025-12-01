@@ -4,6 +4,9 @@ mod file_loader;
 mod file_scanner;
 mod models;
 
+use std::collections::HashMap;
+
+use crate::enums::ParamType;
 use crate::file_classifier::FileClassifier;
 use crate::file_loader::load;
 use crate::models::Subtask;
@@ -13,7 +16,7 @@ use strum::IntoEnumIterator;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyList;
+use pyo3::types::{PyDict, PyList};
 use pyo3::PyObject;
 
 // SubtaskManager with lazy loading
@@ -335,10 +338,63 @@ impl TaskType {
     }
 }
 
+#[pymethods]
+impl Subtask {
+    /// Apply parameters from a Python dict to the subtask.
+    /// params: dict-like mapping string->string
+    /// styles: optional list of ParamType names, e.g. ["DollarBrace", "Curly"]
+    /// ignore_missing: if true, missing placeholders are left unchanged; if false, raises ValueError
+    #[pyo3(signature = (params, styles=None, ignore_missing=None))]
+    #[pyo3(name = "apply_parameters")]
+    pub fn apply_parameters_py(
+        &mut self,
+        // py: Python,
+        params: &Bound<'_, PyDict>,
+        styles: Option<Vec<String>>,
+        ignore_missing: Option<bool>,
+    ) -> PyResult<()> {
+        // convert params to HashMap<String,String>
+        let mut map = HashMap::new();
+        for item in params.items() {
+            let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
+            let key = k.extract::<String>()?;
+            let val = v.extract::<String>()?;
+            map.insert(key, val);
+        }
+
+        // map styles names to ParamType
+        let styles_vec: Option<Vec<ParamType>> = styles.map(|names| {
+            names
+                .into_iter()
+                .filter_map(|s| match s.to_lowercase().as_str() {
+                    "curly" | "curlybraces" | "{name}" => Some(ParamType::Curly),
+                    "dollar" | "$name" => Some(ParamType::Dollar),
+                    "dollarbrace" | "dollar_brace" | "${name}" => Some(ParamType::DollarBrace),
+                    "doubleunderscore" | "double_underscore" | "__NAME__" => {
+                        Some(ParamType::DoubleUnderscore)
+                    }
+                    "percent" | "%name%" => Some(ParamType::Percent),
+                    "angle" | "anglebrackets" | "<name>" => Some(ParamType::Angle),
+                    _ => None,
+                })
+                .collect()
+        });
+
+        let ignore_missing = ignore_missing.unwrap_or(false);
+
+        // call the Rust apply_parameters
+        match self.apply_parameters(&map, styles_vec.as_deref(), ignore_missing) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(PyValueError::new_err(e)),
+        }
+    }
+}
+
 #[pymodule]
 fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SubtaskManager>()?;
-    m.add_class::<models::Subtask>()?;
+    // m.add_class::<models::Subtask>()?;
+    m.add_class::<Subtask>()?;
     m.add_class::<EtlStage>()?;
     m.add_class::<SystemType>()?;
     m.add_class::<TaskType>()?;
