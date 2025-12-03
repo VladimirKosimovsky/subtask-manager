@@ -27,8 +27,7 @@ _ = subtask.apply_parameters(
 )
 
 print(subtask.command)
-
-
+print(subtask.get_stored_params())
 
 for subtask in sm.subtasks:
     print(subtask.entity)

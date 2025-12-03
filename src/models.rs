@@ -25,6 +25,8 @@ pub struct Subtask {
     // Add params field
     #[pyo3(get)]
     pub params: Option<HashSet<String>>,
+    /// ➕ NEW: persist key-value parameter mappings
+    pub stored_params: Option<HashMap<String, String>>,
 }
 
 impl Subtask {
@@ -43,6 +45,7 @@ impl Subtask {
             is_common: false,
             command: None,
             params: None,
+            stored_params: None,
         }
     }
 

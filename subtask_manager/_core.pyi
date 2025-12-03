@@ -144,6 +144,9 @@ class Subtask:
         styles:list[str] | None = None
     ) -> set[str]:
         ...
+    
+    def get_stored_params(self) -> dict[str, str]:
+        ...
 
 class SubtaskManager:
     base_path: str

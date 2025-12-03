@@ -341,6 +341,21 @@ impl TaskType {
 
 #[pymethods]
 impl Subtask {
+    #[pyo3(name = "get_stored_params")]
+    pub fn get_stored_params_py(&self, py: Python) -> PyResult<PyObject> {
+        if let Some(stored) = &self.stored_params {
+            // convert HashMap<String,String> -> Python dict
+            let dict = PyDict::new_bound(py);
+            for (k, v) in stored {
+                dict.set_item(k, v)?;
+            }
+            Ok(dict.into())
+        } else {
+            // return empty dict
+            Ok(PyDict::new_bound(py).into())
+        }
+    }
+        
     #[pyo3(name = "get_params")]
     #[pyo3(signature = (styles=None))] 
     pub fn get_params_py(
@@ -399,7 +414,9 @@ impl Subtask {
             let val = v.extract::<String>()?;
             map.insert(key, val);
         }
-
+        
+        self.stored_params = Some(map.clone());
+        
         // map styles names to ParamType
         let styles_vec: Option<Vec<ParamType>> = styles.map(|names| {
             names
