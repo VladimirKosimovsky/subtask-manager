@@ -22,6 +22,9 @@ pub struct Subtask {
     pub is_common: bool,
     #[pyo3(get)]
     pub command: Option<String>,
+    // Add params field
+    #[pyo3(get)]
+    pub params: Option<HashSet<String>>,
 }
 
 impl Subtask {
@@ -39,6 +42,7 @@ impl Subtask {
             entity: None,
             is_common: false,
             command: None,
+            params: None,
         }
     }
 
@@ -51,6 +55,50 @@ impl Subtask {
         if tt != TaskType::Other {
             self.task_type = Some(tt);
         }
+    }
+
+    /// Extract parameters from path and command, store them in self.params
+    pub fn extract_params(&mut self, styles: Option<&[ParamType]>) {
+        let mut all_params = HashSet::new();
+
+        // Extract from path
+        let path_params = Self::detect_parameters_in_text(&self.path, styles);
+        all_params.extend(path_params);
+
+        // Extract from command if present
+        if let Some(cmd) = &self.command {
+            let cmd_params = Self::detect_parameters_in_text(cmd, styles);
+            all_params.extend(cmd_params);
+        }
+
+        // Extract from name (optional - depending on your use case)
+        let name_params = Self::detect_parameters_in_text(&self.name, styles);
+        all_params.extend(name_params);
+
+        if !all_params.is_empty() {
+            self.params = Some(all_params);
+        }
+    }
+
+    /// Getter method to extract parameters (computed property)
+    pub fn get_params(&self, styles: Option<&[ParamType]>) -> HashSet<String> {
+        let mut all_params = HashSet::new();
+
+        // Extract from path
+        let path_params = Self::detect_parameters_in_text(&self.path, styles);
+        all_params.extend(path_params);
+
+        // Extract from command if present
+        if let Some(cmd) = &self.command {
+            let cmd_params = Self::detect_parameters_in_text(cmd, styles);
+            all_params.extend(cmd_params);
+        }
+
+        // Extract from name (optional - depending on your use case)
+        let name_params = Self::detect_parameters_in_text(&self.name, styles);
+        all_params.extend(name_params);
+        
+        all_params
     }
 
     /// Find parameter names according to given param styles.
@@ -176,6 +224,50 @@ mod tests {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn test_subtask_extract_params() {
+        let mut subtask = Subtask::new("templates/{env}/{date}_report.sql");
+        subtask.command = Some("psql -h $host -U ${user}".into());
+
+        // Extract and store params
+        subtask.extract_params(None);
+
+        // Check that params were stored
+        assert!(subtask.params.is_some());
+        let params = subtask.params.as_ref().unwrap();
+        assert!(params.contains("env"));
+        assert!(params.contains("date"));
+        assert!(params.contains("host"));
+        assert!(params.contains("user"));
+        assert_eq!(params.len(), 4);
+
+        // Also test getter method
+        let computed_params = subtask.get_params(None);
+        assert_eq!(computed_params.len(), 4);
+    }
+
+    #[test]
+    fn test_subtask_get_params_only() {
+        let subtask = Subtask {
+            name: "report_{env}.sql".to_string(),
+            path: "path/{date}/report_{env}.sql".to_string(),
+            task_type: None,
+            system_type: None,
+            stage: None,
+            entity: None,
+            is_common: false,
+            command: Some("run $user".to_string()),
+            params: None, // Not pre-extracted
+        };
+
+        // Use getter to compute params
+        let params = subtask.get_params(None);
+        assert!(params.contains("env"));
+        assert!(params.contains("date"));
+        assert!(params.contains("user"));
+        assert_eq!(params.len(), 3);
     }
 
     #[test]

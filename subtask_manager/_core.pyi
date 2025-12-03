@@ -138,7 +138,12 @@ class Subtask:
         ignore_missing:bool = False
     ) -> None:
         ...
-        
+    
+    def get_params(
+        self, 
+        styles:list[str] | None = None
+    ) -> set[str]:
+        ...
 
 class SubtaskManager:
     base_path: str

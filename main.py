@@ -15,6 +15,7 @@ sm: SubtaskManager = SubtaskManager(
 )
 
 subtask:Subtask = sm.get_task("attach_pg_to_duckdb_with_params.sql")
+print(subtask.get_params())
 _ = subtask.apply_parameters(
     {
         "db_name": "dwh",

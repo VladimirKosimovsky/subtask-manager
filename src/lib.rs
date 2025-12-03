@@ -4,6 +4,7 @@ mod file_loader;
 mod file_scanner;
 mod models;
 
+use pyo3::types::{PyAny, PySet};
 use std::collections::HashMap;
 
 use crate::enums::ParamType;
@@ -340,6 +341,43 @@ impl TaskType {
 
 #[pymethods]
 impl Subtask {
+    #[pyo3(name = "get_params")]
+    #[pyo3(signature = (styles=None))] 
+    pub fn get_params_py(
+        &self,
+        styles: Option<Vec<String>>, // optional param styles from Python
+        py: Python,                  // we need the GIL to build Python objects
+    ) -> PyResult<PyObject> {
+        // Map style names (strings) → ParamType
+        let style_vec: Option<Vec<ParamType>> = styles.map(|names| {
+            names
+                .into_iter()
+                .filter_map(|s| match s.to_lowercase().as_str() {
+                    "curly" | "curlybraces" | "{name}" => Some(ParamType::Curly),
+                    "dollar" | "$name" => Some(ParamType::Dollar),
+                    "dollarbrace" | "dollar_brace" | "${name}" => Some(ParamType::DollarBrace),
+                    "doubleunderscore" | "double_underscore" | "__name__" => {
+                        Some(ParamType::DoubleUnderscore)
+                    }
+                    "percent" | "%name%" => Some(ParamType::Percent),
+                    "angle" | "anglebrackets" | "<name>" => Some(ParamType::Angle),
+                    _ => None,
+                })
+                .collect()
+        });
+
+        // Call the Rust implementation
+        let params = self.get_params(style_vec.as_deref());
+
+        // Convert HashSet<String> → Python set
+        let pyset = PySet::empty_bound(py)?;
+        for name in params {
+            pyset.add(name)?;
+        }
+
+        Ok(pyset.into())
+    }
+
     /// Apply parameters from a Python dict to the subtask.
     /// params: dict-like mapping string->string
     /// styles: optional list of ParamType names, e.g. ["DollarBrace", "Curly"]
