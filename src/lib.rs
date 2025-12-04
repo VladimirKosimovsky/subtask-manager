@@ -238,6 +238,37 @@ impl SubtaskManager {
 }
 
 #[pymethods]
+impl ParamType {
+    pub fn __str__(&self) -> &'static str {
+        self.name()
+    }
+    pub fn __repr__(&self) -> String {
+        format!("ParamType.{}", self.name().to_uppercase())
+    }
+    #[getter]
+    #[pyo3(name = "name")]
+    fn param_type_name_py(&self) -> &'static str {
+        self.name()
+    }
+    #[getter]
+    #[pyo3(name = "aliases")]
+    fn param_type_aliases_py(&self) -> Vec<&'static str> {
+        self.aliases().to_vec()
+    }
+    #[getter]
+    #[pyo3(name = "id")]
+    fn param_type_id_py(&self) -> u8 {
+        *self.id()
+    }
+    
+    #[staticmethod]
+    #[pyo3(name = "from_alias")]
+    fn from_alias_py(alias: String) -> PyResult<ParamType> {
+        ParamType::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
+    }
+}
+
+#[pymethods]
 impl EtlStage {
     pub fn __str__(&self) -> &'static str {
         self.name()
@@ -452,6 +483,7 @@ fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Subtask>()?;
     m.add_class::<EtlStage>()?;
     m.add_class::<SystemType>()?;
+    m.add_class::<ParamType>()?;
     m.add_class::<TaskType>()?;
     m.add_class::<FileScanner>()?;
     m.add_class::<FileClassifier>()?;

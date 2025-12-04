@@ -4,12 +4,14 @@ from subtask_manager import (
     EtlStage,
     FileClassifier,
     FileScanner,
+    ParamType,
     Subtask,
     SubtaskManager,
     SystemType,
     TaskType,
 )
 
+print(ParamType.DollarBrace.aliases)
 sm: SubtaskManager = SubtaskManager(
     base_path="tests/test_data/subtasks",
 )

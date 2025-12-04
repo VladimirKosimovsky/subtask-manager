@@ -105,6 +105,27 @@ class EtlStage:
         cls, alias: str,
     ) -> EtlStage: ...
 
+class ParamType:
+    id: int
+    name: str
+    aliases: list[str]
+
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        aliases: list[str],
+    ) -> None: ...
+    @override
+    def __repr__(self) -> str: ...
+    @override
+    def __str__(self) -> str: ...
+    
+    @classmethod
+    def from_alias(
+        cls, alias: str,
+    ) -> ParamType: ...
+
 class Subtask:
     stage: EtlStage | None
     entity: str | None

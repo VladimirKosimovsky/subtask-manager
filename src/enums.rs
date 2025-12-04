@@ -22,6 +22,7 @@ pub enum ParamType {
     Curly,            // {param}
     Dollar,           // $param
     DollarBrace,      // ${param}
+    DoubleCurly,      // {{param}}
     DoubleUnderscore, // __param__
     Percent,          // %param%
     Angle,            // <param>
@@ -30,6 +31,7 @@ pub enum ParamType {
 
 impl ParamType {
     pub const ALL: &'static [ParamType] = &[
+        ParamType::DoubleCurly,
         ParamType::DollarBrace,
         ParamType::Curly,
         ParamType::Dollar,
@@ -42,9 +44,17 @@ impl ParamType {
         DATA.get_or_init(|| {
             HashMap::from([
                 (
-                    ParamType::Curly,
+                    ParamType::DoubleCurly,
                     ParamTypeData {
                         id: &0,
+                        name: "double_curly",
+                        aliases: vec!["double_curly", "double_curley", "{{name}}"],
+                    },
+                ),
+                (
+                    ParamType::Curly,
+                    ParamTypeData {
+                        id: &1,
                         name: "curly",
                         aliases: vec!["curly", "curley", "{name}"],
                     },
@@ -52,7 +62,7 @@ impl ParamType {
                 (
                     ParamType::Dollar,
                     ParamTypeData {
-                        id: &1,
+                        id: &2,
                         name: "dollar",
                         aliases: vec!["dollar", "$name"],
                     },
@@ -60,7 +70,7 @@ impl ParamType {
                 (
                     ParamType::DollarBrace,
                     ParamTypeData {
-                        id: &2,
+                        id: &3,
                         name: "dollar_brace",
                         aliases: vec!["dollarbrace", "dollar_brace", "${name}"],
                     },
@@ -68,7 +78,7 @@ impl ParamType {
                 (
                     ParamType::DoubleUnderscore,
                     ParamTypeData {
-                        id: &3,
+                        id: &4,
                         name: "double_underscore",
                         aliases: vec!["doubleunderscore", "__name__", "__NAME__"],
                     },
@@ -76,7 +86,7 @@ impl ParamType {
                 (
                     ParamType::Percent,
                     ParamTypeData {
-                        id: &4,
+                        id: &5,
                         name: "percent",
                         aliases: vec!["percent", "%name%"],
                     },
@@ -84,7 +94,7 @@ impl ParamType {
                 (
                     ParamType::Angle,
                     ParamTypeData {
-                        id: &5,
+                        id: &6,
                         name: "angle",
                         aliases: vec!["angle", "<name>"],
                     },
@@ -92,7 +102,7 @@ impl ParamType {
                 (
                     ParamType::Other,
                     ParamTypeData {
-                        id: &6,
+                        id: &7,
                         name: "other",
                         aliases: vec!["other"],
                     },

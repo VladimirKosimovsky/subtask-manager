@@ -56,6 +56,12 @@ impl Subtask {
 
     fn regex_for_style(style: ParamType) -> &'static Regex {
         match style {
+            ParamType::DoubleCurly => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| {
+                    Regex::new(r"\{\{(?P<name>[A-Za-z0-9_.:-]+)\}\}").expect("valid regex")
+                })
+            }
             ParamType::Curly => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| {
@@ -475,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_subtask_apply_parameters_full() {
-        let mut s = Subtask::new("templates/report_{env}.sql");
+        let mut s = Subtask::new("templates/report_{{env}}.sql");
         s.command = Some("psql -h $host -U $user -d ${db}".into());
 
         let params = map(&[
