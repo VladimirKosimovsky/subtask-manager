@@ -355,9 +355,9 @@ impl Subtask {
             Ok(PyDict::new_bound(py).into())
         }
     }
-        
+
     #[pyo3(name = "get_params")]
-    #[pyo3(signature = (styles=None))] 
+    #[pyo3(signature = (styles=None))]
     pub fn get_params_py(
         &self,
         styles: Option<Vec<String>>, // optional param styles from Python
@@ -414,9 +414,9 @@ impl Subtask {
             let val = v.extract::<String>()?;
             map.insert(key, val);
         }
-        
+
         self.stored_params = Some(map.clone());
-        
+
         // map styles names to ParamType
         let styles_vec: Option<Vec<ParamType>> = styles.map(|names| {
             names

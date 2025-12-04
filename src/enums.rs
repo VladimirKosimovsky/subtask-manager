@@ -1,91 +1,130 @@
-use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::OnceLock;
 use strum_macros::EnumIter;
 
+/* ============================================================================================
+ *  ParamType  (Unified with other enums — no regex(), pure metadata)
+ * ============================================================================================ */
+
+#[derive(Debug, Clone)]
+struct ParamTypeData {
+    id: &'static u8,
+    name: &'static str,
+    aliases: Vec<&'static str>,
+}
+
 #[pyclass(eq, eq_int)]
-#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ParamType {
-    /// {name}
-    Curly,
-    /// $name
-    Dollar,
-    /// ${name}
-    DollarBrace,
-    /// __NAME__ (often all-caps)
-    DoubleUnderscore,
-    /// %name%
-    Percent,
-    /// <name>
-    Angle,
-    /// any custom regex (not exposed to python directly)
-    Other,
+    Curly,            // {param}
+    Dollar,           // $param
+    DollarBrace,      // ${param}
+    DoubleUnderscore, // __param__
+    Percent,          // %param%
+    Angle,            // <param>
+    Other,            // fallback / no match
 }
 
 impl ParamType {
-    /// Return a compiled Regex for this ParamType. The capture group "name" holds parameter name.
-    pub fn regex(&self) -> &'static Regex {
-        static RE_CURLEY: OnceCell<Regex> = OnceCell::new();
-        static RE_DOLLAR: OnceCell<Regex> = OnceCell::new();
-        static RE_DOLLAR_BRACE: OnceCell<Regex> = OnceCell::new();
-        static RE_DOUBLE_UNDERSCORE: OnceCell<Regex> = OnceCell::new();
-        static RE_PERCENT: OnceCell<Regex> = OnceCell::new();
-        static RE_ANGLE: OnceCell<Regex> = OnceCell::new();
-
-        match self {
-            ParamType::Curly => RE_CURLEY.get_or_init(|| {
-                Regex::new(r"\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
-            }),
-            ParamType::Dollar => RE_DOLLAR.get_or_init(|| {
-                // $name but not $$ or $1 etc; stop at word boundary
-                Regex::new(r"(?P<full>\$(?P<name>[A-Za-z_][A-Za-z0-9_.-]*))\b")
-                    .expect("valid regex")
-            }),
-            ParamType::DollarBrace => RE_DOLLAR_BRACE.get_or_init(|| {
-                // ${name}
-                Regex::new(r"\$\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
-            }),
-            ParamType::DoubleUnderscore => RE_DOUBLE_UNDERSCORE.get_or_init(|| {
-                // __NAME__
-                Regex::new(r"__(?P<name>[A-Za-z0-9_]+)__").expect("valid regex")
-            }),
-            ParamType::Percent => RE_PERCENT
-                .get_or_init(|| Regex::new(r"%(?P<name>[A-Za-z0-9_.:-]+)%").expect("valid regex")),
-            ParamType::Angle => RE_ANGLE
-                .get_or_init(|| Regex::new(r"<(?P<name>[A-Za-z0-9_.:-]+)>").expect("valid regex")),
-            ParamType::Other => RE_CURLEY.get_or_init(|| {
-                Regex::new(r"\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
-            }),
-        }
+    pub const ALL: &'static [ParamType] = &[
+        ParamType::DollarBrace,
+        ParamType::Curly,
+        ParamType::Dollar,
+        ParamType::DoubleUnderscore,
+        ParamType::Percent,
+        ParamType::Angle,
+    ];
+    fn param_type_data() -> &'static HashMap<ParamType, ParamTypeData> {
+        static DATA: OnceLock<HashMap<ParamType, ParamTypeData>> = OnceLock::new();
+        DATA.get_or_init(|| {
+            HashMap::from([
+                (
+                    ParamType::Curly,
+                    ParamTypeData {
+                        id: &0,
+                        name: "curly",
+                        aliases: vec!["curly", "curley", "{name}"],
+                    },
+                ),
+                (
+                    ParamType::Dollar,
+                    ParamTypeData {
+                        id: &1,
+                        name: "dollar",
+                        aliases: vec!["dollar", "$name"],
+                    },
+                ),
+                (
+                    ParamType::DollarBrace,
+                    ParamTypeData {
+                        id: &2,
+                        name: "dollar_brace",
+                        aliases: vec!["dollarbrace", "dollar_brace", "${name}"],
+                    },
+                ),
+                (
+                    ParamType::DoubleUnderscore,
+                    ParamTypeData {
+                        id: &3,
+                        name: "double_underscore",
+                        aliases: vec!["doubleunderscore", "__name__", "__NAME__"],
+                    },
+                ),
+                (
+                    ParamType::Percent,
+                    ParamTypeData {
+                        id: &4,
+                        name: "percent",
+                        aliases: vec!["percent", "%name%"],
+                    },
+                ),
+                (
+                    ParamType::Angle,
+                    ParamTypeData {
+                        id: &5,
+                        name: "angle",
+                        aliases: vec!["angle", "<name>"],
+                    },
+                ),
+                (
+                    ParamType::Other,
+                    ParamTypeData {
+                        id: &6,
+                        name: "other",
+                        aliases: vec!["other"],
+                    },
+                ),
+            ])
+        })
     }
 
-    /// Friendly display name
+    pub fn from_alias(alias: &str) -> Result<ParamType, String> {
+        let alias_lower = alias.to_lowercase();
+        for (ptype, data) in Self::param_type_data().iter() {
+            if data.name == alias_lower || data.aliases.iter().any(|&a| a == alias_lower) {
+                return Ok(*ptype);
+            }
+        }
+        Err(format!("Unknown ParamType alias: {}", alias))
+    }
+
     pub fn as_str(&self) -> &'static str {
-        match self {
-            ParamType::Curly => "curly {name}",
-            ParamType::Dollar => "dollar $name",
-            ParamType::DollarBrace => "dollar_brace ${name}",
-            ParamType::DoubleUnderscore => "double_underscore __NAME__",
-            ParamType::Percent => "percent %name%",
-            ParamType::Angle => "angle <name>",
-            ParamType::Other => "other",
-        }
+        Self::param_type_data()[self].name
     }
 
-    /// Default list of param types to try when user doesn't specify
-    pub fn default_order() -> Vec<ParamType> {
-        vec![
-            ParamType::DollarBrace,
-            ParamType::Curly,
-            ParamType::Dollar,
-            ParamType::DoubleUnderscore,
-            ParamType::Percent,
-            ParamType::Angle,
-        ]
+    pub fn id(&self) -> &'static u8 {
+        Self::param_type_data()[self].id
+    }
+
+    pub fn name(&self) -> &'static str {
+        Self::param_type_data()[self].name
+    }
+
+    pub fn aliases(&self) -> &Vec<&'static str> {
+        &Self::param_type_data()[self].aliases
     }
 }
 
@@ -94,6 +133,10 @@ impl fmt::Display for ParamType {
         f.write_str(self.as_str())
     }
 }
+
+/* ============================================================================================
+ *  EtlStage
+ * ============================================================================================ */
 
 #[derive(Debug, Clone)]
 struct EtlStageData {
@@ -181,39 +224,34 @@ impl EtlStage {
 
     pub fn from_alias(alias: &str) -> Result<EtlStage, String> {
         let alias_lower = alias.to_lowercase();
-        for (stage, stage_info) in Self::etl_stage_data().iter() {
-            if stage_info.name == alias_lower
-                || stage_info.aliases.iter().any(|&a| a == alias_lower)
-            {
+        for (stage, data) in Self::etl_stage_data().iter() {
+            if data.name == alias_lower || data.aliases.iter().any(|&a| a == alias_lower) {
                 return Ok(*stage);
             }
         }
         Err(format!("Unknown ETL stage alias: {}", alias))
     }
 
-    pub fn as_str(&self) -> &str {
-        match self {
-            EtlStage::Setup => "SETUP",
-            EtlStage::Extract => "EXTRACT",
-            EtlStage::Transform => "TRANSFORM",
-            EtlStage::Load => "LOAD",
-            EtlStage::Cleanup => "CLEANUP",
-            EtlStage::Postprocessing => "POSTPROCESSING",
-            EtlStage::Other => "OTHER",
-        }
+    pub fn as_str(&self) -> &'static str {
+        Self::etl_stage_data()[self].name
     }
+
     pub fn id(&self) -> &'static u8 {
-        &Self::etl_stage_data()[self].id
+        Self::etl_stage_data()[self].id
     }
 
     pub fn name(&self) -> &'static str {
-        &Self::etl_stage_data()[self].name
+        Self::etl_stage_data()[self].name
     }
 
     pub fn aliases(&self) -> &[&'static str; 4] {
         &Self::etl_stage_data()[self].aliases
     }
 }
+
+/* ============================================================================================
+ *  SystemType
+ * ============================================================================================ */
 
 #[derive(Debug, Clone)]
 struct SystemTypeData {
@@ -294,7 +332,7 @@ impl SystemType {
                     SystemTypeData {
                         id: &6,
                         name: "sqlserver",
-                        aliases: vec!["sqlserver", "mssql"],
+                        aliases: vec!["sqlserver", "mssql", "tsql"],
                     },
                 ),
                 (
@@ -302,7 +340,7 @@ impl SystemType {
                     SystemTypeData {
                         id: &7,
                         name: "vertica",
-                        aliases: vec!["vertica", "vertica"],
+                        aliases: vec!["vertica"],
                     },
                 ),
                 (
@@ -316,41 +354,37 @@ impl SystemType {
             ])
         })
     }
+
     pub fn from_alias(alias: &str) -> Result<SystemType, String> {
         let alias_lower = alias.to_lowercase();
-        for (system_type, system_type_info) in Self::system_type_data().iter() {
-            if system_type_info.name == alias_lower
-                || system_type_info.aliases.iter().any(|&a| a == alias_lower)
-            {
+        for (system_type, data) in Self::system_type_data().iter() {
+            if data.name == alias_lower || data.aliases.iter().any(|a| a == &alias_lower) {
                 return Ok(*system_type);
             }
         }
         Err(format!("Unknown system type alias: {}", alias))
     }
-    pub fn as_str(&self) -> &str {
-        match self {
-            SystemType::Clickhouse => "CLICKHOUSE",
-            SystemType::Duckdb => "DUCKDB",
-            SystemType::MySQL => "MYSQL",
-            SystemType::OracleDB => "ORACLEDB",
-            SystemType::PostgreSQL => "POSTGRESQL",
-            SystemType::SQLite => "SQLITE",
-            SystemType::SqlServer => "SQLSERVER",
-            SystemType::Vertica => "VERTICA",
-            SystemType::Other => "OTHER",
-        }
+
+    pub fn as_str(&self) -> &'static str {
+        Self::system_type_data()[self].name
     }
+
     pub fn id(&self) -> &'static u8 {
-        &Self::system_type_data()[self].id
+        Self::system_type_data()[self].id
     }
+
     pub fn name(&self) -> &'static str {
-        &Self::system_type_data()[self].name
+        Self::system_type_data()[self].name
     }
 
     pub fn aliases(&self) -> &Vec<&'static str> {
         &Self::system_type_data()[self].aliases
     }
 }
+
+/* ============================================================================================
+ *  TaskType
+ * ============================================================================================ */
 
 #[derive(Debug, Clone)]
 struct TaskTypeData {
@@ -444,35 +478,27 @@ impl TaskType {
             ])
         })
     }
-    pub fn from_extension(alias: &str) -> Result<TaskType, String> {
-        let alias_lower = alias.to_lowercase();
-        for (task_type, task_type_info) in Self::task_type_data().iter() {
-            if task_type_info.name == alias_lower
-                || task_type_info.extensions.iter().any(|&a| a == alias_lower)
-            {
+
+    pub fn from_extension(ext: &str) -> Result<TaskType, String> {
+        let alias_lower = ext.to_lowercase();
+        for (task_type, data) in Self::task_type_data().iter() {
+            if data.name == alias_lower || data.extensions.iter().any(|&e| e == alias_lower) {
                 return Ok(*task_type);
             }
         }
-        Err(format!("Unknown task type alias: {}", alias))
+        Err(format!("Unknown task type extension: {}", ext))
     }
 
-    pub fn as_str(&self) -> &str {
-        match self {
-            TaskType::Sql => "SQL",
-            TaskType::Shell => "SHELL",
-            TaskType::Powershell => "POWERSHELL",
-            TaskType::Python => "PYTHON",
-            TaskType::Graphql => "GRAPHQL",
-            TaskType::Json => "JSON",
-            TaskType::Yaml => "YAML",
-            TaskType::Other => "OTHER",
-        }
+    pub fn as_str(&self) -> &'static str {
+        Self::task_type_data()[self].name
     }
+
     pub fn id(&self) -> &'static u8 {
-        &Self::task_type_data()[self].id
+        Self::task_type_data()[self].id
     }
+
     pub fn name(&self) -> &'static str {
-        &Self::task_type_data()[self].name
+        Self::task_type_data()[self].name
     }
 
     pub fn extensions(&self) -> &Vec<&'static str> {

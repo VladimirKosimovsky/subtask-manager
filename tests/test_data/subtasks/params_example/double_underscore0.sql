@@ -1,1 +1,1 @@
-SELECT * FROM users WHERE name = __NAME__ AND login = __LOGIN__
+SELECT * FROM users WHERE name = '__NAME__' AND login = '__LOGIN__'

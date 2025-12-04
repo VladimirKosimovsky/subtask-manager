@@ -1,5 +1,7 @@
 use crate::enums::{EtlStage, ParamType, SystemType, TaskType};
+use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -46,6 +48,46 @@ impl Subtask {
             command: None,
             params: None,
             stored_params: None,
+        }
+    }
+    fn default_param_styles() -> Vec<ParamType> {
+        ParamType::ALL.to_vec()
+    }
+
+    fn regex_for_style(style: ParamType) -> &'static Regex {
+        match style {
+            ParamType::Curly => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| {
+                    Regex::new(r"\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
+                })
+            }
+            ParamType::Dollar => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| Regex::new(r"\$(?P<name>[A-Za-z0-9_]+)").unwrap())
+            }
+            ParamType::DollarBrace => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| {
+                    Regex::new(r"\$\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
+                })
+            }
+            ParamType::DoubleUnderscore => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| Regex::new(r"__(?P<name>[A-Za-z0-9_]+)__").unwrap())
+            }
+            ParamType::Percent => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| Regex::new(r"%(?P<name>[A-Za-z0-9_]+)%").unwrap())
+            }
+            ParamType::Angle => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| Regex::new(r"<(?P<name>[A-Za-z0-9_]+)>").unwrap())
+            }
+            ParamType::Other => {
+                static RE: OnceCell<Regex> = OnceCell::new();
+                RE.get_or_init(|| Regex::new(r"$^").unwrap()) // matches nothing
+            }
         }
     }
 
@@ -100,7 +142,7 @@ impl Subtask {
         // Extract from name (optional - depending on your use case)
         let name_params = Self::detect_parameters_in_text(&self.name, styles);
         all_params.extend(name_params);
-        
+
         all_params
     }
 
@@ -108,10 +150,10 @@ impl Subtask {
     /// If `styles` is None, uses ParamType::default_order()
     pub fn detect_parameters_in_text(text: &str, styles: Option<&[ParamType]>) -> HashSet<String> {
         let mut result = HashSet::new();
-        let default_styles = ParamType::default_order();
+        let default_styles = Subtask::default_param_styles();
         let use_styles = styles.unwrap_or(&default_styles);
         for &style in use_styles.iter() {
-            let re = style.regex();
+            let re = Subtask::regex_for_style(style);
             for caps in re.captures_iter(text) {
                 if let Some(m) = caps.name("name") {
                     result.insert(m.as_str().to_string());
@@ -128,14 +170,14 @@ impl Subtask {
         styles: Option<&[ParamType]>,
         ignore_missing: bool,
     ) -> (String, Vec<String>) {
-        let default_styles = ParamType::default_order();
+        let default_styles = Subtask::default_param_styles();
         let use_styles = styles.unwrap_or(&default_styles);
         // We'll apply replacements one style at a time
         let mut current = text.to_string();
         let mut missing = Vec::new();
 
         for &style in use_styles.iter() {
-            let re = style.regex();
+            let re = Subtask::regex_for_style(style);
             // replace all matches for this style
             let replaced = re.replace_all(&current, |caps: &regex::Captures| {
                 // name capture present?
@@ -263,6 +305,7 @@ mod tests {
             is_common: false,
             command: Some("run $user".to_string()),
             params: None, // Not pre-extracted
+            stored_params: None,
         };
 
         // Use getter to compute params

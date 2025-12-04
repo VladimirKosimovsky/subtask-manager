@@ -18,10 +18,10 @@ def test_params_simple():
     test_cases = [
         ("curvy0.sql",{"db_name": "test_db"}, "ATTACH if not exists '' AS test_db (TYPE POSTGRES, SECRET test_db_secret);"),
         ("dollar0.sql", {"user_id": "1"}, "SELECT * FROM users WHERE id = 1"),
-        ("dollar_brace0.sql", {"name": "John", "login": "john"}, "SELECT * FROM users WHERE name = John AND login = john"),
-        ("double_underscore0.sql", {"name": "John", "login": "john"}, "SELECT * FROM users WHERE name = John AND login = john"),
-        ("percent0.sql", {"name": "John", "login": "john"}, "SELECT * FROM users WHERE name = John AND login = john"),
-        ("angle0.sql", {"name": "John", "login": "john"}, "SELECT * FROM users WHERE name = John AND login = john"),
+        ("dollar_brace0.sql", {"name": "John", "login": "john"}, "SELECT * FROM users WHERE name = 'John' AND login = 'john'"),
+        ("double_underscore0.sql", {"name": "Fred", "login": "fred"}, "SELECT * FROM users WHERE name = 'Fred' AND login = 'fred'"),
+        ("percent0.sql", {"name": "George", "login": "george"}, "SELECT * FROM users WHERE name = 'George' AND login = 'george'"),
+        ("angle0.sql", {"name": "Kit", "login": "kit"}, "SELECT * FROM users WHERE name = 'Kit' AND login = 'kit'"),
     ]
     for test_case in test_cases:
         subtask:Subtask = sm.get_task(test_case[0])
