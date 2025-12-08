@@ -444,29 +444,13 @@ impl Subtask {
         for item in params.items() {
             let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
             let key = k.extract::<String>()?;
-            let val = v.extract::<String>()?;
+            
+            // Convert any Python object to string using its __str__ method
+            let val = v.str()?.to_string();
             map.insert(key, val);
         }
 
         self.stored_params = Some(map.clone());
-
-        // // map styles names to ParamType
-        // let styles_vec: Option<Vec<ParamType>> = styles.map(|names| {
-        //     names
-        //         .into_iter()
-        //         .filter_map(|s| match s.to_lowercase().as_str() {
-        //             "curly" | "curlybraces" | "{name}" => Some(ParamType::Curly),
-        //             "dollar" | "$name" => Some(ParamType::Dollar),
-        //             "dollarbrace" | "dollar_brace" | "${name}" => Some(ParamType::DollarBrace),
-        //             "doubleunderscore" | "double_underscore" | "__NAME__" => {
-        //                 Some(ParamType::DoubleUnderscore)
-        //             }
-        //             "percent" | "%name%" => Some(ParamType::Percent),
-        //             "angle" | "anglebrackets" | "<name>" => Some(ParamType::Angle),
-        //             _ => None,
-        //         })
-        //         .collect()
-        // });
 
         let ignore_missing = ignore_missing.unwrap_or(false);
 

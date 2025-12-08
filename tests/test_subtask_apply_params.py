@@ -64,7 +64,6 @@ def test_params_simple():
 
 def test_params_filtered_styles():
     sm: SubtaskManager = SubtaskManager(get_default_path())
-    "select '{uuid}' as uuid, 'report_{{env}}.sql' as src, 'psql -h $host -U $user -d ${db}' as cmd, '__USER__' as user, <id> as id from %table%"
 
     test_cases = [
         (
@@ -120,3 +119,39 @@ def test_params_filtered_styles():
         print(subtask.command)
         print(expected_command)
         assert subtask.command == expected_command
+
+
+def test_different_param_data_types():
+    sm: SubtaskManager = SubtaskManager(get_default_path())
+
+    test_cases = [
+        (
+            "non_string_params0.sql",
+            {"name": "Alice", "id": 10},
+            [ParamType.Curly],
+            "SELECT * FROM users WHERE name = 'Alice' AND id = 10 and is_active = __IS_ACTIVE__",
+        ),
+        (
+            "non_string_params0.sql",
+            {"name": "Bob", "id": 20, "is_active": True},
+            [ParamType.Curly, ParamType.DoubleUnderscore],
+            "SELECT * FROM users WHERE name = 'Bob' AND id = 20 and is_active = True",
+        ),
+        (
+            "non_string_params1.sql",
+            {"activated_at": "2022-01-01", "balance": 1000.123456},
+            [ParamType.Curly, ParamType.DoubleUnderscore],
+            "SELECT * FROM users WHERE activated_at = '2022-01-01' AND balance >= 1000.123456",
+        ),
+    ]
+    
+    for test_case in test_cases:
+        subtask: Subtask = sm.get_task(test_case[0])
+        params = test_case[1]
+        expected_command = test_case[3]
+
+        subtask.apply_parameters(params=params, styles=test_case[2])
+        print(subtask.command)
+        print(expected_command)
+        assert subtask.command == expected_command
+    

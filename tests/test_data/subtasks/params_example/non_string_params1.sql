@@ -1,0 +1,1 @@
+SELECT * FROM users WHERE activated_at = '{activated_at}' AND balance >= {balance}
