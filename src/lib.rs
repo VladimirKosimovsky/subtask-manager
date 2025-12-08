@@ -266,6 +266,8 @@ impl ParamType {
     fn from_alias_py(alias: String) -> PyResult<ParamType> {
         ParamType::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
     }
+    
+    
 }
 
 #[pymethods]
@@ -434,7 +436,7 @@ impl Subtask {
         &mut self,
         // py: Python,
         params: &Bound<'_, PyDict>,
-        styles: Option<Vec<String>>,
+        styles: Option<Vec<ParamType>>,
         ignore_missing: Option<bool>,
     ) -> PyResult<()> {
         // convert params to HashMap<String,String>
@@ -448,28 +450,28 @@ impl Subtask {
 
         self.stored_params = Some(map.clone());
 
-        // map styles names to ParamType
-        let styles_vec: Option<Vec<ParamType>> = styles.map(|names| {
-            names
-                .into_iter()
-                .filter_map(|s| match s.to_lowercase().as_str() {
-                    "curly" | "curlybraces" | "{name}" => Some(ParamType::Curly),
-                    "dollar" | "$name" => Some(ParamType::Dollar),
-                    "dollarbrace" | "dollar_brace" | "${name}" => Some(ParamType::DollarBrace),
-                    "doubleunderscore" | "double_underscore" | "__NAME__" => {
-                        Some(ParamType::DoubleUnderscore)
-                    }
-                    "percent" | "%name%" => Some(ParamType::Percent),
-                    "angle" | "anglebrackets" | "<name>" => Some(ParamType::Angle),
-                    _ => None,
-                })
-                .collect()
-        });
+        // // map styles names to ParamType
+        // let styles_vec: Option<Vec<ParamType>> = styles.map(|names| {
+        //     names
+        //         .into_iter()
+        //         .filter_map(|s| match s.to_lowercase().as_str() {
+        //             "curly" | "curlybraces" | "{name}" => Some(ParamType::Curly),
+        //             "dollar" | "$name" => Some(ParamType::Dollar),
+        //             "dollarbrace" | "dollar_brace" | "${name}" => Some(ParamType::DollarBrace),
+        //             "doubleunderscore" | "double_underscore" | "__NAME__" => {
+        //                 Some(ParamType::DoubleUnderscore)
+        //             }
+        //             "percent" | "%name%" => Some(ParamType::Percent),
+        //             "angle" | "anglebrackets" | "<name>" => Some(ParamType::Angle),
+        //             _ => None,
+        //         })
+        //         .collect()
+        // });
 
         let ignore_missing = ignore_missing.unwrap_or(false);
 
         // call the Rust apply_parameters
-        match self.apply_parameters(&map, styles_vec.as_deref(), ignore_missing) {
+        match self.apply_parameters(&map, styles.as_deref(), ignore_missing) {
             Ok(()) => Ok(()),
             Err(e) => Err(PyValueError::new_err(e)),
         }

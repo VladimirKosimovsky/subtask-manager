@@ -1,0 +1,1 @@
+SELECT * FROM users WHERE name = '{{user.name}}' AND login = '{{user.login}}'

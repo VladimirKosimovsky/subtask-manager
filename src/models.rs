@@ -65,7 +65,7 @@ impl Subtask {
             ParamType::Curly => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| {
-                    Regex::new(r"\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
+                    Regex::new(r"(?:\$\{|\{\{|\{(?P<name>[A-Za-z0-9_.:-]+)\})").expect("valid regex")
                 })
             }
             ParamType::Dollar => {

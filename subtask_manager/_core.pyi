@@ -109,6 +109,17 @@ class ParamType:
     id: int
     name: str
     aliases: list[str]
+    #
+    # ALL: list[ParamType]
+    # Enum variants as class attributes
+    Curly:ParamType
+    Dollar:ParamType
+    DollarBrace:ParamType
+    DoubleCurly:ParamType
+    DoubleUnderscore:ParamType
+    Percent:ParamType
+    Angle:ParamType
+    Other:ParamType
 
     def __init__(
         self,
@@ -155,7 +166,7 @@ class Subtask:
     def apply_parameters(
         self, 
         params:dict, 
-        styles:list[str] | None = None, 
+        styles:list[ParamType] | None = None, 
         ignore_missing:bool = False
     ) -> None:
         ...

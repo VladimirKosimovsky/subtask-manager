@@ -17,7 +17,7 @@ struct ParamTypeData {
 }
 
 #[pyclass(eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, EnumIter, Serialize, Deserialize)]
 pub enum ParamType {
     Curly,            // {param}
     Dollar,           // $param

@@ -26,6 +26,7 @@ build-backend = "maturin"
 
 [dependency-groups]
 dev = [
+    "coverage>=7.12.0",
     "debugpy>=1.8.17",
     "maturin>=1.9.5",
     "pyo3-stubgen>=0.3.0",
