@@ -173,8 +173,11 @@ class Subtask:
     
     def get_params(
         self, 
-        styles:list[str] | None = None
+        styles:list[ParamType] | None = None
     ) -> set[str]:
+        '''
+        Returns a set of parameter names that are used in the command.
+        '''
         ...
     
     def get_stored_params(self) -> dict[str, str]:

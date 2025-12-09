@@ -1,1 +1,1 @@
-select '{uuid}' as uuid, 'report_{{env}}.sql' as src, 'psql -h $host -U $user -d ${db}' as cmd, '__USER__' as user, <id> as id from %table%
+select '{uuid}' as uuid, 'report_{{env}}.sql' as src, 'psql -h $host -U $user -d ${db}' as cmd, '__user__' as user, <id> as id from %table%

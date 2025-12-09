@@ -393,29 +393,13 @@ impl Subtask {
     #[pyo3(signature = (styles=None))]
     pub fn get_params_py(
         &self,
-        styles: Option<Vec<String>>, // optional param styles from Python
+        styles: Option<Vec<ParamType>>, // optional param styles from Python
         py: Python,                  // we need the GIL to build Python objects
     ) -> PyResult<PyObject> {
         // Map style names (strings) → ParamType
-        let style_vec: Option<Vec<ParamType>> = styles.map(|names| {
-            names
-                .into_iter()
-                .filter_map(|s| match s.to_lowercase().as_str() {
-                    "curly" | "curlybraces" | "{name}" => Some(ParamType::Curly),
-                    "dollar" | "$name" => Some(ParamType::Dollar),
-                    "dollarbrace" | "dollar_brace" | "${name}" => Some(ParamType::DollarBrace),
-                    "doubleunderscore" | "double_underscore" | "__name__" => {
-                        Some(ParamType::DoubleUnderscore)
-                    }
-                    "percent" | "%name%" => Some(ParamType::Percent),
-                    "angle" | "anglebrackets" | "<name>" => Some(ParamType::Angle),
-                    _ => None,
-                })
-                .collect()
-        });
 
         // Call the Rust implementation
-        let params = self.get_params(style_vec.as_deref());
+        let params = self.get_params(styles.as_deref());
 
         // Convert HashSet<String> → Python set
         let pyset = PySet::empty_bound(py)?;

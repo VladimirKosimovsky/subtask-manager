@@ -71,7 +71,7 @@ def test_params_filtered_styles():
             "all_styles0.sql",
             {"env": "dev", "db": "test_db"},
             [ParamType.DoubleCurly, ParamType.DollarBrace],
-            "select '{uuid}' as uuid, 'report_dev.sql' as src, 'psql -h $host -U $user -d test_db' as cmd, '__USER__' as user, <id> as id from %table%",
+            "select '{uuid}' as uuid, 'report_dev.sql' as src, 'psql -h $host -U $user -d test_db' as cmd, '__user__' as user, <id> as id from %table%",
         ),
         (
             "all_styles0.sql",
@@ -85,7 +85,7 @@ def test_params_filtered_styles():
                 ParamType.DollarBrace,
                 ParamType.DoubleCurly,
             ],
-            "select '51492cf0-a5b1-4b5d-8665-98cfb5858660' as uuid, 'report_dev.sql' as src, 'psql -h $host -U $user -d test_db' as cmd, '__USER__' as user, <id> as id from %table%",
+            "select '51492cf0-a5b1-4b5d-8665-98cfb5858660' as uuid, 'report_dev.sql' as src, 'psql -h $host -U $user -d test_db' as cmd, '__user__' as user, <id> as id from %table%",
         ),
         (
             "all_styles0.sql",
@@ -129,7 +129,7 @@ def test_different_param_data_types():
             "non_string_params0.sql",
             {"name": "Alice", "id": 10},
             [ParamType.Curly],
-            "SELECT * FROM users WHERE name = 'Alice' AND id = 10 and is_active = __IS_ACTIVE__",
+            "SELECT * FROM users WHERE name = 'Alice' AND id = 10 and is_active = __is_active__",
         ),
         (
             "non_string_params0.sql",
@@ -144,7 +144,7 @@ def test_different_param_data_types():
             "SELECT * FROM users WHERE activated_at = '2022-01-01' AND balance >= 1000.123456",
         ),
     ]
-    
+
     for test_case in test_cases:
         subtask: Subtask = sm.get_task(test_case[0])
         params = test_case[1]
@@ -154,4 +154,3 @@ def test_different_param_data_types():
         print(subtask.command)
         print(expected_command)
         assert subtask.command == expected_command
-    
