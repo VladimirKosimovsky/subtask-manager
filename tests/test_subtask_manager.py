@@ -119,7 +119,7 @@ def test_existing_path():
     
     sm:SubtaskManager = SubtaskManager(base)
     
-    assert len(sm.subtasks) == 4
+    assert len(sm.subtasks) == 16
     
     extract_customers_task = sm.get_task("extract_data.sql")
     assert extract_customers_task.name == "extract_data.sql"
@@ -129,14 +129,14 @@ def test_existing_path():
     "select *",
     "from public.customers;"
     ])
-    assert extract_customers_task.command == expected_content
+    assert extract_customers_task.rendered_command == expected_content
     
     tasks = sm.get_tasks(is_common=True)
-    assert len(tasks) == 1
+    assert len(tasks) == 2
     
     tasks = sm.get_tasks(etl_stage=EtlStage.Extract, include_common=False)
     assert len(tasks) == 1
     
     
     tasks = sm.get_tasks(entity="customers")
-    assert len(tasks) == 2
+    assert len(tasks) == 3

@@ -57,9 +57,9 @@ def test_params_simple():
         expected_command = test_case[2]
 
         subtask.apply_parameters(params)
-        print(subtask.command)
+        print(subtask.rendered_command)
         print(expected_command)
-        assert subtask.command == expected_command
+        assert subtask.rendered_command == expected_command
 
 
 def test_params_filtered_styles():
@@ -116,9 +116,9 @@ def test_params_filtered_styles():
         expected_command = test_case[3]
 
         subtask.apply_parameters(params=params, styles=test_case[2])
-        print(subtask.command)
+        print(subtask.rendered_command)
         print(expected_command)
-        assert subtask.command == expected_command
+        assert subtask.rendered_command == expected_command
 
 
 def test_different_param_data_types():
@@ -151,6 +151,6 @@ def test_different_param_data_types():
         expected_command = test_case[3]
 
         subtask.apply_parameters(params=params, styles=test_case[2])
-        print(subtask.command)
+        print(subtask.rendered_command)
         print(expected_command)
-        assert subtask.command == expected_command
+        assert subtask.rendered_command == expected_command

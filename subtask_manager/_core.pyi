@@ -146,6 +146,7 @@ class Subtask:
     name: str
     path: str
     command: str | None
+    rendered_command: str | None
 
     def __init__(
         self,

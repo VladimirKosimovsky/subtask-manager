@@ -22,14 +22,18 @@ pub struct Subtask {
     pub entity: Option<String>,
     #[pyo3(get)]
     pub is_common: bool,
+    /// Template (never mutated)
     #[pyo3(get)]
     pub command: Option<String>,
-    // Add params field
+
+    /// Rendered command with parameters applied
+    #[pyo3(get)]
+    pub rendered_command: Option<String>,
     #[pyo3(get)]
     pub params: Option<HashSet<String>>,
-    /// ➕ NEW: persist key-value parameter mappings
     pub stored_params: Option<HashMap<String, String>>,
 }
+
 
 impl Subtask {
     pub fn new(path: &str) -> Self {
@@ -48,6 +52,7 @@ impl Subtask {
             command: None,
             params: None,
             stored_params: None,
+            rendered_command: None,
         }
     }
     fn default_param_styles() -> Vec<ParamType> {
@@ -231,26 +236,21 @@ impl Subtask {
 
         let (new_path, missing_path) =
             Self::apply_parameters_to_text(&self.path, params, styles, ignore_missing);
-        if !missing_path.is_empty() {
-            all_missing.extend(missing_path);
-        }
+        all_missing.extend(missing_path);
         self.path = new_path;
-
-        if let Some(cmd) = &self.command {
-            let (new_cmd, missing_cmd) =
-                Self::apply_parameters_to_text(cmd, params, styles, ignore_missing);
-            if !missing_cmd.is_empty() {
-                all_missing.extend(missing_cmd);
-            }
-            self.command = Some(new_cmd);
+    
+        // command: APPLY FROM TEMPLATE → STORE IN rendered_command
+        if let Some(template_cmd) = &self.command {
+            let (rendered, missing_cmd) =
+                Self::apply_parameters_to_text(template_cmd, params, styles, ignore_missing);
+            all_missing.extend(missing_cmd);
+            self.rendered_command = Some(rendered);
         }
 
         // Update name too (optional) - many times name is derived from path, so you may or may not want this.
         let (new_name, missing_name) =
             Self::apply_parameters_to_text(&self.name, params, styles, ignore_missing);
-        if !missing_name.is_empty() {
-            all_missing.extend(missing_name);
-        }
+        all_missing.extend(missing_name);
         self.name = new_name;
 
         if !all_missing.is_empty() && !ignore_missing {
@@ -312,6 +312,7 @@ mod tests {
             command: Some("run $user".to_string()),
             params: None, // Not pre-extracted
             stored_params: None,
+            rendered_command: None,
         };
 
         // Use getter to compute params
@@ -495,8 +496,12 @@ mod tests {
 
         assert_eq!(s.path, "templates/report_prod.sql");
         assert_eq!(
-            s.command.as_ref().unwrap(),
+            s.rendered_command.as_ref().unwrap(),
             "psql -h db.example.com -U alice -d analytics"
+        );
+        assert_eq!(
+            s.command.as_ref().unwrap(),
+            "psql -h $host -U $user -d ${db}"
         );
         assert_eq!(s.name, "report_prod.sql"); // if name contained placeholders
     }
