@@ -1,0 +1,1 @@
+ATTACH if not exists '' AS {db_name} (TYPE POSTGRES, SECRET {db_name}_secret);

@@ -1,0 +1,1 @@
+SELECT * FROM users WHERE name = '{name}' AND id = {id} and is_active = __is_active__

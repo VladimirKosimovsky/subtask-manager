@@ -4,15 +4,33 @@ from subtask_manager import (
     EtlStage,
     FileClassifier,
     FileScanner,
+    ParamType,
     Subtask,
     SubtaskManager,
     SystemType,
     TaskType,
 )
 
+print(ParamType.DollarBrace.aliases)
 sm: SubtaskManager = SubtaskManager(
     base_path="tests/test_data/subtasks",
 )
+
+subtask:Subtask = sm.get_task("attach_pg_to_duckdb_with_params.sql")
+print(subtask.get_params())
+_ = subtask.apply_parameters(
+    {
+        "db_name": "dwh",
+        "host": "localhost",
+        "port": "5432",
+        "user": "postgres",
+        "password": "password",
+    }
+)
+
+print(subtask.render().command)
+print(subtask.get_stored_params())
+
 for subtask in sm.subtasks:
     print(subtask.entity)
 

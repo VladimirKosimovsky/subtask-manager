@@ -1,6 +1,6 @@
 [project]
 name = "subtask-manager"
-version = "0.1.0"
+version = "0.2.1"
 description = "ETL Subtask management library written in Rust"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,6 +26,8 @@ build-backend = "maturin"
 
 [dependency-groups]
 dev = [
+    "coverage>=7.12.0",
+    "debugpy>=1.8.17",
     "maturin>=1.9.5",
     "pyo3-stubgen>=0.3.0",
     "pytest>=8.4.2",

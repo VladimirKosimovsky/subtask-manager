@@ -2,6 +2,8 @@ from ._core import (
     EtlStage,
     FileClassifier,
     FileScanner,
+    ParamType,
+    RenderedSubtask,
     Subtask,
     SubtaskManager,
     SystemType,
@@ -9,11 +11,13 @@ from ._core import (
 )
 
 __all__ = [
-    "SubtaskManager",
-    "Subtask",
     "EtlStage",
+    "FileClassifier",
+    "FileScanner",
+    "ParamType",
+    "RenderedSubtask",
+    "Subtask",
+    "SubtaskManager",
     "SystemType",
     "TaskType",
-    "FileScanner",
-    "FileClassifier",
 ]
