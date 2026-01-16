@@ -79,7 +79,7 @@ impl FileClassifier {
         }
 
         // set task type by extension
-        sub.set_task_type_from_ext();
+        let sub = sub.set_task_type_from_ext();
         if sub.task_type.is_none() {
             bail!("Unknown task type");
         }

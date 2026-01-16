@@ -137,6 +137,20 @@ class ParamType:
         cls, alias: str,
     ) -> ParamType: ...
 
+class RenderedSubtask:
+    """Lightweight structure containing only rendered values after parameter application."""
+    
+    name: str
+    path: str
+    command: str | None
+    params: dict[str, str]
+    
+    @override
+    def __repr__(self) -> str: ...
+    @override
+    def __str__(self) -> str: ...
+
+
 class Subtask:
     stage: EtlStage | None
     entity: str | None
@@ -166,22 +180,57 @@ class Subtask:
     
     def apply_parameters(
         self, 
-        params:dict, 
-        styles:list[ParamType] | None = None, 
-        ignore_missing:bool = False
-    ) -> None:
+        params: dict[str, str], 
+        styles: list[ParamType] | None = None, 
+        ignore_missing: bool = False
+    ) -> Subtask:
+        """
+        Apply parameters to this subtask and return a new Subtask with applied parameters.
+        The original subtask remains unchanged (immutable).
+        """
         ...
     
     def get_params(
         self, 
-        styles:list[ParamType] | None = None
+        styles: list[ParamType] | None = None
     ) -> set[str]:
-        '''
+        """
         Returns a set of parameter names that are used in the command.
-        '''
+        """
         ...
     
     def get_stored_params(self) -> dict[str, str]:
+        ...
+    
+    def get_command(self) -> str | None:
+        """
+        Get the command to execute. Returns rendered_command if available, otherwise command template.
+        """
+        ...
+    
+    def render(self) -> Subtask:
+        """
+        Render this subtask - resolves all templates even if no parameters are needed.
+        Equivalent to calling apply_parameters with empty params.
+        """
+        ...
+    
+    def render_lightweight(self) -> RenderedSubtask:
+        """
+        Lightweight render without parameters. Returns only the rendered values.
+        """
+        ...
+    
+    def render_with_params(
+        self,
+        params: dict[str, str],
+        styles: list[ParamType] | None = None,
+        ignore_missing: bool = False
+    ) -> RenderedSubtask:
+        """
+        Apply parameters and return a lightweight RenderedSubtask with only the output values.
+        This is more efficient than apply_parameters() which clones the entire Subtask.
+        """
         ...
 
 class SubtaskManager:

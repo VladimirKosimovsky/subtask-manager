@@ -8,8 +8,15 @@ use std::collections::{HashMap, HashSet};
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Subtask {
+    /// Original name template (never mutated)
+    pub original_name: String,
+    /// Original path template (never mutated)
+    pub original_path: String,
+    
+    /// Rendered name with parameters applied
     #[pyo3(get)]
     pub name: String,
+    /// Rendered path with parameters applied
     #[pyo3(get)]
     pub path: String,
     #[pyo3(get)]
@@ -22,7 +29,7 @@ pub struct Subtask {
     pub entity: Option<String>,
     #[pyo3(get)]
     pub is_common: bool,
-    /// Template (never mutated)
+    /// Template command (never mutated)
     #[pyo3(get)]
     pub command: Option<String>,
 
@@ -34,15 +41,33 @@ pub struct Subtask {
     pub stored_params: Option<HashMap<String, String>>,
 }
 
+/// Lightweight structure containing only rendered values after parameter application.
+/// Use this when you only need the final rendered outputs without carrying metadata.
+#[pyclass]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RenderedSubtask {
+    #[pyo3(get)]
+    pub name: String,
+    #[pyo3(get)]
+    pub path: String,
+    #[pyo3(get)]
+    pub command: Option<String>,
+    #[pyo3(get)]
+    pub params: HashMap<String, String>,
+}
+
 
 impl Subtask {
     pub fn new(path: &str) -> Self {
         let p = std::path::Path::new(path);
+        let name = p
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
         Subtask {
-            name: p
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default(),
+            original_name: name.clone(),
+            original_path: path.to_string(),
+            name,
             path: path.to_string(),
             task_type: None,
             system_type: None,
@@ -102,19 +127,21 @@ impl Subtask {
         }
     }
 
-    pub fn set_task_type_from_ext(&mut self) {
+    pub fn set_task_type_from_ext(&self) -> Self {
         let ext = std::path::Path::new(&self.path)
             .extension()
             .and_then(|s| s.to_str())
             .unwrap_or("");
         let tt = TaskType::from_extension(ext).unwrap_or(TaskType::Other);
+        let mut new_subtask = self.clone();
         if tt != TaskType::Other {
-            self.task_type = Some(tt);
+            new_subtask.task_type = Some(tt);
         }
+        new_subtask
     }
 
-    /// Extract parameters from path and command, store them in self.params
-    pub fn extract_params(&mut self, styles: Option<&[ParamType]>) {
+    /// Extract parameters from path and command, return new Subtask with params set
+    pub fn extract_params(&self, styles: Option<&[ParamType]>) -> Self {
         let mut all_params = HashSet::new();
 
         // Extract from path
@@ -131,9 +158,11 @@ impl Subtask {
         let name_params = Self::detect_parameters_in_text(&self.name, styles);
         all_params.extend(name_params);
 
+        let mut new_subtask = self.clone();
         if !all_params.is_empty() {
-            self.params = Some(all_params);
+            new_subtask.params = Some(all_params);
         }
+        new_subtask
     }
 
     /// Getter method to extract parameters (computed property)
@@ -225,33 +254,50 @@ impl Subtask {
         (current, missing)
     }
 
-    /// Apply parameters to this subtask (path, command, and name). Returns Err if missing parameters and ignore_missing==false
-    pub fn apply_parameters(
-        &mut self,
+    /// Get the command to execute. Returns rendered_command if available, otherwise command template.
+    /// This is a convenience method to avoid checking both fields.
+    pub fn get_command(&self) -> Option<&String> {
+        self.rendered_command.as_ref().or(self.command.as_ref())
+    }
+
+    /// Render this subtask - resolves all templates even if no parameters are needed.
+    /// Equivalent to calling apply_parameters with empty params.
+    pub fn render(&self) -> Self {
+        let empty_params = HashMap::new();
+        // Use ignore_missing=true since we're just rendering with no params
+        self.apply_parameters(&empty_params, None, true)
+            .expect("render should never fail with empty params and ignore_missing=true")
+    }
+
+    /// Apply parameters and return a lightweight RenderedSubtask with only the output values.
+    /// This is more efficient than apply_parameters() which clones the entire Subtask.
+    pub fn render_with_params(
+        &self,
         params: &HashMap<String, String>,
         styles: Option<&[ParamType]>,
         ignore_missing: bool,
-    ) -> Result<(), String> {
+    ) -> Result<RenderedSubtask, String> {
         let mut all_missing = Vec::new();
 
+        // Apply from ORIGINAL path template
         let (new_path, missing_path) =
-            Self::apply_parameters_to_text(&self.path, params, styles, ignore_missing);
+            Self::apply_parameters_to_text(&self.original_path, params, styles, ignore_missing);
         all_missing.extend(missing_path);
-        self.path = new_path;
-    
-        // command: APPLY FROM TEMPLATE → STORE IN rendered_command
-        if let Some(template_cmd) = &self.command {
+
+        // Apply from ORIGINAL name template
+        let (new_name, missing_name) =
+            Self::apply_parameters_to_text(&self.original_name, params, styles, ignore_missing);
+        all_missing.extend(missing_name);
+
+        // command: APPLY FROM TEMPLATE
+        let rendered_command = if let Some(template_cmd) = &self.command {
             let (rendered, missing_cmd) =
                 Self::apply_parameters_to_text(template_cmd, params, styles, ignore_missing);
             all_missing.extend(missing_cmd);
-            self.rendered_command = Some(rendered);
-        }
-
-        // Update name too (optional) - many times name is derived from path, so you may or may not want this.
-        let (new_name, missing_name) =
-            Self::apply_parameters_to_text(&self.name, params, styles, ignore_missing);
-        all_missing.extend(missing_name);
-        self.name = new_name;
+            Some(rendered)
+        } else {
+            None
+        };
 
         if !all_missing.is_empty() && !ignore_missing {
             all_missing.sort();
@@ -261,7 +307,77 @@ impl Subtask {
                 all_missing.join(", ")
             ));
         }
-        Ok(())
+
+        Ok(RenderedSubtask {
+            name: new_name,
+            path: new_path,
+            command: rendered_command,
+            params: params.clone(),
+        })
+    }
+
+    /// Lightweight render without parameters. Returns only the rendered values.
+    pub fn render_lightweight(&self) -> RenderedSubtask {
+        let empty_params = HashMap::new();
+        self.render_with_params(&empty_params, None, true)
+            .expect("render_lightweight should never fail with empty params and ignore_missing=true")
+    }
+
+    /// Apply parameters to this subtask (path, command, and name). Returns new Subtask with applied parameters.
+    /// Returns Err if missing parameters and ignore_missing==false
+    /// Always applies from original_path, original_name, and command templates, so can be called multiple times
+    pub fn apply_parameters(
+        &self,
+        params: &HashMap<String, String>,
+        styles: Option<&[ParamType]>,
+        ignore_missing: bool,
+    ) -> Result<Self, String> {
+        let mut all_missing = Vec::new();
+
+        // Apply from ORIGINAL path template
+        let (new_path, missing_path) =
+            Self::apply_parameters_to_text(&self.original_path, params, styles, ignore_missing);
+        all_missing.extend(missing_path);
+    
+        // command: APPLY FROM TEMPLATE → STORE IN rendered_command
+        let rendered_command = if let Some(template_cmd) = &self.command {
+            let (rendered, missing_cmd) =
+                Self::apply_parameters_to_text(template_cmd, params, styles, ignore_missing);
+            all_missing.extend(missing_cmd);
+            Some(rendered)
+        } else {
+            None
+        };
+
+        // Apply from ORIGINAL name template
+        let (new_name, missing_name) =
+            Self::apply_parameters_to_text(&self.original_name, params, styles, ignore_missing);
+        all_missing.extend(missing_name);
+
+        if !all_missing.is_empty() && !ignore_missing {
+            all_missing.sort();
+            all_missing.dedup();
+            return Err(format!(
+                "Missing parameters for keys: {}",
+                all_missing.join(", ")
+            ));
+        }
+
+        Ok(Subtask {
+            original_name: self.original_name.clone(),
+            original_path: self.original_path.clone(),
+            name: new_name,
+            path: new_path,
+            task_type: self.task_type,
+            system_type: self.system_type,
+            stage: self.stage,
+            entity: self.entity.clone(),
+            is_common: self.is_common,
+            command: self.command.clone(),
+            rendered_command,
+            params: self.params.clone(),
+            stored_params: Some(params.clone()),
+        })
     }
 }
 
@@ -282,8 +398,8 @@ mod tests {
         let mut subtask = Subtask::new("templates/{env}/{date}_report.sql");
         subtask.command = Some("psql -h $host -U ${user}".into());
 
-        // Extract and store params
-        subtask.extract_params(None);
+        // Extract and store params (returns new instance)
+        let subtask = subtask.extract_params(None);
 
         // Check that params were stored
         assert!(subtask.params.is_some());
@@ -302,6 +418,8 @@ mod tests {
     #[test]
     fn test_subtask_get_params_only() {
         let subtask = Subtask {
+            original_name: "report_{env}.sql".to_string(),
+            original_path: "path/{date}/report_{env}.sql".to_string(),
             name: "report_{env}.sql".to_string(),
             path: "path/{date}/report_{env}.sql".to_string(),
             task_type: None,
@@ -492,7 +610,7 @@ mod tests {
             ("db", "analytics"),
         ]);
 
-        s.apply_parameters(&params, None, false).unwrap();
+        let s = s.apply_parameters(&params, None, false).unwrap();
 
         assert_eq!(s.path, "templates/report_prod.sql");
         assert_eq!(
@@ -508,12 +626,173 @@ mod tests {
 
     #[test]
     fn test_subtask_apply_parameters_missing() {
-        let mut s = Subtask::new("run_{missing}.sql");
+        let s = Subtask::new("run_{missing}.sql");
 
         let params = map(&[]);
         let res = s.apply_parameters(&params, None, false);
 
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("missing"));
+    }
+
+    #[test]
+    fn test_apply_parameters_multiple_times() {
+        let mut s = Subtask::new("templates/report_{{env}}.sql");
+        s.command = Some("psql -h $host -U $user".into());
+
+        // First application with prod params
+        let params1 = map(&[
+            ("env", "prod"),
+            ("host", "prod.example.com"),
+            ("user", "prod_user"),
+        ]);
+        let s1 = s.apply_parameters(&params1, None, false).unwrap();
+
+        assert_eq!(s1.path, "templates/report_prod.sql");
+        assert_eq!(s1.name, "report_prod.sql");
+        assert_eq!(
+            s1.rendered_command.as_ref().unwrap(),
+            "psql -h prod.example.com -U prod_user"
+        );
+
+        // Second application with dev params - should use original templates from s (or s1, both have same originals)
+        let params2 = map(&[
+            ("env", "dev"),
+            ("host", "dev.example.com"),
+            ("user", "dev_user"),
+        ]);
+        let s2 = s.apply_parameters(&params2, None, false).unwrap();
+
+        assert_eq!(s2.path, "templates/report_dev.sql");
+        assert_eq!(s2.name, "report_dev.sql");
+        assert_eq!(
+            s2.rendered_command.as_ref().unwrap(),
+            "psql -h dev.example.com -U dev_user"
+        );
+
+        // Verify originals are unchanged in both instances
+        assert_eq!(s1.original_path, "templates/report_{{env}}.sql");
+        assert_eq!(s1.original_name, "report_{{env}}.sql");
+        assert_eq!(s1.command.as_ref().unwrap(), "psql -h $host -U $user");
+        
+        assert_eq!(s2.original_path, "templates/report_{{env}}.sql");
+        assert_eq!(s2.original_name, "report_{{env}}.sql");
+        assert_eq!(s2.command.as_ref().unwrap(), "psql -h $host -U $user");
+    }
+
+    #[test]
+    fn test_originals_preserved() {
+        let mut s = Subtask::new("path/{date}/file_{env}.sql");
+        s.command = Some("run on $host".into());
+
+        let original_path = s.original_path.clone();
+        let original_name = s.original_name.clone();
+        let original_cmd = s.command.clone();
+
+        // Apply parameters (returns new instance)
+        let params = map(&[("date", "2025"), ("env", "test"), ("host", "localhost")]);
+        let applied = s.apply_parameters(&params, None, false).unwrap();
+
+        // Verify originals in the NEW instance are still unchanged
+        assert_eq!(applied.original_path, original_path);
+        assert_eq!(applied.original_name, original_name);
+        assert_eq!(applied.command, original_cmd);
+
+        // Verify rendered values changed in the NEW instance
+        assert_eq!(applied.path, "path/2025/file_test.sql");
+        assert_eq!(applied.name, "file_test.sql");
+        assert_eq!(applied.rendered_command.as_ref().unwrap(), "run on localhost");
+
+        // Verify original instance is completely unchanged
+        assert_eq!(s.path, "path/{date}/file_{env}.sql");
+        assert_eq!(s.name, "file_{env}.sql");
+        assert_eq!(s.rendered_command, None);
+    }
+
+    #[test]
+    fn test_get_command() {
+        // With no rendered_command, should return command template
+        let s = Subtask::new("test.sql");
+        assert_eq!(s.get_command(), None);
+
+        let mut s = s;
+        s.command = Some("psql -h localhost".into());
+        assert_eq!(s.get_command(), Some(&"psql -h localhost".to_string()));
+
+        // After applying params, should return rendered_command
+        let params = map(&[("host", "prod.db")]);
+        s.command = Some("psql -h $host".into());
+        let applied = s.apply_parameters(&params, None, false).unwrap();
+        assert_eq!(applied.get_command(), Some(&"psql -h prod.db".to_string()));
+        assert_eq!(applied.rendered_command, Some("psql -h prod.db".to_string()));
+    }
+
+    #[test]
+    fn test_render_no_params() {
+        let mut s = Subtask::new("report.sql");
+        s.command = Some("psql -h localhost -U admin".into());
+
+        // Render without any parameters
+        let rendered = s.render();
+
+        // Should have rendered_command populated even though no params were replaced
+        assert_eq!(rendered.get_command(), Some(&"psql -h localhost -U admin".to_string()));
+        assert_eq!(rendered.rendered_command, Some("psql -h localhost -U admin".to_string()));
+        assert_eq!(rendered.path, "report.sql");
+        assert_eq!(rendered.name, "report.sql");
+    }
+
+    #[test]
+    fn test_render_with_template_but_no_params_provided() {
+        let mut s = Subtask::new("report_{env}.sql");
+        s.command = Some("psql -h $host".into());
+
+        // Render without providing parameters - should leave placeholders unchanged
+        let rendered = s.render();
+
+        // Placeholders remain since we used empty params with ignore_missing=true
+        assert_eq!(rendered.path, "report_{env}.sql");
+        assert_eq!(rendered.name, "report_{env}.sql");
+        assert_eq!(rendered.rendered_command, Some("psql -h $host".to_string()));
+    }
+
+    #[test]
+    fn test_render_with_params_lightweight() {
+        let mut s = Subtask::new("templates/{env}/report_{date}.sql");
+        s.command = Some("psql -h $host -U $user -d $db".into());
+
+        let params = map(&[
+            ("env", "prod"),
+            ("date", "2025-01"),
+            ("host", "prod.db.com"),
+            ("user", "admin"),
+            ("db", "analytics"),
+        ]);
+
+        // Use lightweight render
+        let rendered = s.render_with_params(&params, None, false).unwrap();
+
+        // Check rendered values
+        assert_eq!(rendered.name, "report_2025-01.sql");
+        assert_eq!(rendered.path, "templates/prod/report_2025-01.sql");
+        assert_eq!(
+            rendered.command.as_ref().unwrap(),
+            "psql -h prod.db.com -U admin -d analytics"
+        );
+        assert_eq!(rendered.params.get("env"), Some(&"prod".to_string()));
+        assert_eq!(rendered.params.get("date"), Some(&"2025-01".to_string()));
+    }
+
+    #[test]
+    fn test_render_lightweight_no_params() {
+        let mut s = Subtask::new("report.sql");
+        s.command = Some("psql -h localhost".into());
+
+        let rendered = s.render_lightweight();
+
+        assert_eq!(rendered.name, "report.sql");
+        assert_eq!(rendered.path, "report.sql");
+        assert_eq!(rendered.command, Some("psql -h localhost".to_string()));
+        assert!(rendered.params.is_empty());
     }
 }

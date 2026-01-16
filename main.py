@@ -28,7 +28,7 @@ _ = subtask.apply_parameters(
     }
 )
 
-print(subtask.command)
+print(subtask.render().command)
 print(subtask.get_stored_params())
 
 for subtask in sm.subtasks:

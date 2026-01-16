@@ -100,7 +100,7 @@ def test_get_stored_params():
     for test_case in test_cases:
         subtask: Subtask = sm.get_task(test_case[0])
         params = test_case[1]
-        subtask.apply_parameters(params=params, styles=test_case[2])
-        expected_params = subtask.get_stored_params()
+        applied = subtask.apply_parameters(params=params, styles=test_case[2])
+        expected_params = applied.get_stored_params()
 
         assert params == expected_params

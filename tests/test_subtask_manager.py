@@ -129,7 +129,7 @@ def test_existing_path():
     "select *",
     "from public.customers;"
     ])
-    assert extract_customers_task.rendered_command == expected_content
+    assert extract_customers_task.render().command == expected_content
     
     tasks = sm.get_tasks(is_common=True)
     assert len(tasks) == 2

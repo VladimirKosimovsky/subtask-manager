@@ -3,6 +3,7 @@ from ._core import (
     FileClassifier,
     FileScanner,
     ParamType,
+    RenderedSubtask,
     Subtask,
     SubtaskManager,
     SystemType,
@@ -14,8 +15,9 @@ __all__ = [
     "FileClassifier",
     "FileScanner",
     "ParamType",
-    "SubtaskManager",
+    "RenderedSubtask",
     "Subtask",
+    "SubtaskManager",
     "SystemType",
     "TaskType",
 ]

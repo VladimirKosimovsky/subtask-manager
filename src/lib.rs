@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::enums::ParamType;
 use crate::file_classifier::FileClassifier;
 use crate::file_loader::load;
-use crate::models::Subtask;
+use crate::models::{RenderedSubtask, Subtask};
 use enums::{EtlStage, SystemType, TaskType};
 use file_scanner::FileScanner;
 use strum::IntoEnumIterator;
@@ -410,19 +410,39 @@ impl Subtask {
         Ok(pyset.into())
     }
 
-    /// Apply parameters from a Python dict to the subtask.
-    /// params: dict-like mapping string->string
-    /// styles: optional list of ParamType names, e.g. ["DollarBrace", "Curly"]
-    /// ignore_missing: if true, missing placeholders are left unchanged; if false, raises ValueError
+    /// Get the command to execute. Returns rendered_command if available, otherwise command template.
+    #[pyo3(name = "get_command")]
+    pub fn get_command_py(&self) -> Option<String> {
+        self.get_command().cloned()
+    }
+
+    /// Render this subtask - resolves all templates even if no parameters are needed.
+    /// Equivalent to calling apply_parameters with empty dict.
+    #[pyo3(name = "render")]
+    pub fn render_py(&self, py: Python) -> PyResult<Py<Subtask>> {
+        let rendered = self.render();
+        Py::new(py, rendered)
+    }
+
+    /// Lightweight render - returns only the rendered values without metadata.
+    /// More efficient than render() or apply_parameters() for simple use cases.
+    #[pyo3(name = "render_lightweight")]
+    pub fn render_lightweight_py(&self, py: Python) -> PyResult<Py<RenderedSubtask>> {
+        let rendered = self.render_lightweight();
+        Py::new(py, rendered)
+    }
+
+    /// Apply parameters and return a lightweight RenderedSubtask with only the output values.
+    /// More efficient than apply_parameters() which returns a full Subtask clone.
     #[pyo3(signature = (params, styles=None, ignore_missing=None))]
-    #[pyo3(name = "apply_parameters")]
-    pub fn apply_parameters_py(
-        &mut self,
-        // py: Python,
+    #[pyo3(name = "render_with_params")]
+    pub fn render_with_params_py(
+        &self,
+        py: Python,
         params: &Bound<'_, PyDict>,
         styles: Option<Vec<ParamType>>,
         ignore_missing: Option<bool>,
-    ) -> PyResult<()> {
+    ) -> PyResult<Py<RenderedSubtask>> {
         // convert params to HashMap<String,String>
         let mut map = HashMap::new();
         for item in params.items() {
@@ -434,13 +454,48 @@ impl Subtask {
             map.insert(key, val);
         }
 
-        self.stored_params = Some(map.clone());
+        let ignore_missing = ignore_missing.unwrap_or(false);
+
+        // call the Rust render_with_params
+        match self.render_with_params(&map, styles.as_deref(), ignore_missing) {
+            Ok(rendered) => Py::new(py, rendered),
+            Err(e) => Err(PyValueError::new_err(e)),
+        }
+    }
+
+    /// Apply parameters from a Python dict to the subtask.
+    /// Returns a new Subtask instance with parameters applied (immutable operation).
+    /// params: dict-like mapping string->string
+    /// styles: optional list of ParamType names, e.g. ["DollarBrace", "Curly"]
+    /// ignore_missing: if true, missing placeholders are left unchanged; if false, raises ValueError
+    #[pyo3(signature = (params, styles=None, ignore_missing=None))]
+    #[pyo3(name = "apply_parameters")]
+    pub fn apply_parameters_py(
+        &self,
+        py: Python,
+        params: &Bound<'_, PyDict>,
+        styles: Option<Vec<ParamType>>,
+        ignore_missing: Option<bool>,
+    ) -> PyResult<Py<Subtask>> {
+        // convert params to HashMap<String,String>
+        let mut map = HashMap::new();
+        for item in params.items() {
+            let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
+            let key = k.extract::<String>()?;
+            
+            // Convert any Python object to string using its __str__ method
+            let val = v.str()?.to_string();
+            map.insert(key, val);
+        }
 
         let ignore_missing = ignore_missing.unwrap_or(false);
 
-        // call the Rust apply_parameters
+        // call the Rust apply_parameters (returns new Subtask)
         match self.apply_parameters(&map, styles.as_deref(), ignore_missing) {
-            Ok(()) => Ok(()),
+            Ok(new_subtask) => {
+                // Return the new Subtask as a Python object
+                Py::new(py, new_subtask)
+            },
             Err(e) => Err(PyValueError::new_err(e)),
         }
     }
@@ -451,6 +506,7 @@ fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SubtaskManager>()?;
     // m.add_class::<models::Subtask>()?;
     m.add_class::<Subtask>()?;
+    m.add_class::<RenderedSubtask>()?;
     m.add_class::<EtlStage>()?;
     m.add_class::<SystemType>()?;
     m.add_class::<ParamType>()?;
