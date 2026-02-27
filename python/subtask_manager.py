@@ -14,14 +14,14 @@ class SubtaskManager:
     """
 
     def __init__(self, base_path: str | Path):
-        self.base_path:Path = Path(base_path)
+        self.base_path: Path = Path(base_path)
         self.subtasks: list[Subtask] = []
 
-        self.scanner:FileScanner = FileScanner(
+        self.scanner: FileScanner = FileScanner(
             [f".{ext}" for t in TaskType for ext in t.extensions]
         )
-        self.classifier:FileClassifier = FileClassifier()
-        self.loader:FileLoader = FileLoader()
+        self.classifier: FileClassifier = FileClassifier()
+        self.loader: FileLoader = FileLoader()
 
         self._discover_subtasks()
 
@@ -45,6 +45,9 @@ class SubtaskManager:
     ) -> dict[str, Subtask]:
         """
         Filter subtasks by provided criteria.
+
+        Returns a dict keyed by unique task name. If duplicate names exist,
+        later duplicates are suffixed with `#<n>` to avoid silent overwrites.
         """
         filtered = [
             s
@@ -56,12 +59,35 @@ class SubtaskManager:
             and (is_common is None or s.is_common == is_common)
         ]
 
+        # Deduplicate by absolute path while preserving order.
+        seen_paths: set[Path] = {s.path.resolve() for s in filtered}
         if include_common:
-            filtered += [s for s in self.subtasks if s.is_common]
+            for s in self.subtasks:
+                resolved = s.path.resolve()
+                if s.is_common and resolved not in seen_paths:
+                    filtered.append(s)
+                    seen_paths.add(resolved)
 
-        return {s.path.stem: s for s in filtered}
+        # Build a stable dict without key collisions by task stem.
+        result: dict[str, Subtask] = {}
+        key_counts: dict[str, int] = {}
+        for s in filtered:
+            base_key = s.path.stem
+            if base_key not in result:
+                result[base_key] = s
+                key_counts[base_key] = 1
+                continue
 
-    def get_task(self, name: str, entity: str| None = None) -> Subtask:
+            key_counts[base_key] += 1
+            candidate = f"{base_key}#{key_counts[base_key]}"
+            while candidate in result:
+                key_counts[base_key] += 1
+                candidate = f"{base_key}#{key_counts[base_key]}"
+            result[candidate] = s
+
+        return result
+
+    def get_task(self, name: str, entity: str | None = None) -> Subtask:
         """
         Get a single subtask by filename (optionally filtered by entity).
         """

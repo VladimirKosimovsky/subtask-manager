@@ -11,7 +11,7 @@ use strum_macros::EnumIter;
 
 #[derive(Debug, Clone)]
 struct ParamTypeData {
-    id: &'static u8,
+    id: u8,
     name: &'static str,
     aliases: Vec<&'static str>,
 }
@@ -30,15 +30,6 @@ pub enum ParamType {
 }
 
 impl ParamType {
-    pub const ALL: &'static [ParamType] = &[
-        ParamType::DoubleCurly,
-        ParamType::DollarBrace,
-        ParamType::Curly,
-        ParamType::Dollar,
-        ParamType::DoubleUnderscore,
-        ParamType::Percent,
-        ParamType::Angle,
-    ];
     fn param_type_data() -> &'static HashMap<ParamType, ParamTypeData> {
         static DATA: OnceLock<HashMap<ParamType, ParamTypeData>> = OnceLock::new();
         DATA.get_or_init(|| {
@@ -46,7 +37,7 @@ impl ParamType {
                 (
                     ParamType::DoubleCurly,
                     ParamTypeData {
-                        id: &0,
+                        id: 0,
                         name: "double_curly",
                         aliases: vec!["double_curly", "double_curley", "{{name}}"],
                     },
@@ -54,7 +45,7 @@ impl ParamType {
                 (
                     ParamType::Curly,
                     ParamTypeData {
-                        id: &1,
+                        id: 1,
                         name: "curly",
                         aliases: vec!["curly", "curley", "{name}"],
                     },
@@ -62,7 +53,7 @@ impl ParamType {
                 (
                     ParamType::Dollar,
                     ParamTypeData {
-                        id: &2,
+                        id: 2,
                         name: "dollar",
                         aliases: vec!["dollar", "$name"],
                     },
@@ -70,7 +61,7 @@ impl ParamType {
                 (
                     ParamType::DollarBrace,
                     ParamTypeData {
-                        id: &3,
+                        id: 3,
                         name: "dollar_brace",
                         aliases: vec!["dollarbrace", "dollar_brace", "${name}"],
                     },
@@ -78,7 +69,7 @@ impl ParamType {
                 (
                     ParamType::DoubleUnderscore,
                     ParamTypeData {
-                        id: &4,
+                        id: 4,
                         name: "double_underscore",
                         aliases: vec!["doubleunderscore", "__name__", "__NAME__"],
                     },
@@ -86,7 +77,7 @@ impl ParamType {
                 (
                     ParamType::Percent,
                     ParamTypeData {
-                        id: &5,
+                        id: 5,
                         name: "percent",
                         aliases: vec!["percent", "%name%"],
                     },
@@ -94,7 +85,7 @@ impl ParamType {
                 (
                     ParamType::Angle,
                     ParamTypeData {
-                        id: &6,
+                        id: 6,
                         name: "angle",
                         aliases: vec!["angle", "<name>"],
                     },
@@ -102,7 +93,7 @@ impl ParamType {
                 (
                     ParamType::Other,
                     ParamTypeData {
-                        id: &7,
+                        id: 7,
                         name: "other",
                         aliases: vec!["other"],
                     },
@@ -121,11 +112,7 @@ impl ParamType {
         Err(format!("Unknown ParamType alias: {}", alias))
     }
 
-    pub fn as_str(&self) -> &'static str {
-        Self::param_type_data()[self].name
-    }
-
-    pub fn id(&self) -> &'static u8 {
+    pub fn id(&self) -> u8 {
         Self::param_type_data()[self].id
     }
 
@@ -140,7 +127,7 @@ impl ParamType {
 
 impl fmt::Display for ParamType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        f.write_str(self.name())
     }
 }
 
@@ -150,13 +137,13 @@ impl fmt::Display for ParamType {
 
 #[derive(Debug, Clone)]
 struct EtlStageData {
-    id: &'static u8,
+    id: u8,
     name: &'static str,
-    aliases: [&'static str; 4],
+    aliases: Vec<&'static str>,
 }
 
 #[pyclass(eq, eq_int)]
-#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, EnumIter, Deserialize, Serialize)]
 pub enum EtlStage {
     Setup,
     Extract,
@@ -175,57 +162,57 @@ impl EtlStage {
                 (
                     EtlStage::Setup,
                     EtlStageData {
-                        id: &0,
+                        id: 0,
                         name: "setup",
-                        aliases: ["00_setup", "setup", "s", "00"],
+                        aliases: vec!["00_setup", "setup", "s", "00"],
                     },
                 ),
                 (
                     EtlStage::Extract,
                     EtlStageData {
-                        id: &1,
+                        id: 1,
                         name: "extract",
-                        aliases: ["01_extract", "extract", "e", "01"],
+                        aliases: vec!["01_extract", "extract", "e", "01"],
                     },
                 ),
                 (
                     EtlStage::Transform,
                     EtlStageData {
-                        id: &2,
+                        id: 2,
                         name: "transform",
-                        aliases: ["02_transform", "transform", "t", "02"],
+                        aliases: vec!["02_transform", "transform", "t", "02"],
                     },
                 ),
                 (
                     EtlStage::Load,
                     EtlStageData {
-                        id: &3,
+                        id: 3,
                         name: "load",
-                        aliases: ["03_load", "load", "l", "03"],
+                        aliases: vec!["03_load", "load", "l", "03"],
                     },
                 ),
                 (
                     EtlStage::Cleanup,
                     EtlStageData {
-                        id: &4,
+                        id: 4,
                         name: "cleanup",
-                        aliases: ["04_cleanup", "cleanup", "c", "04"],
+                        aliases: vec!["04_cleanup", "cleanup", "c", "04"],
                     },
                 ),
                 (
                     EtlStage::Postprocessing,
                     EtlStageData {
-                        id: &5,
+                        id: 5,
                         name: "post_processing",
-                        aliases: ["05_post_processing", "post_processing", "pp", "05"],
+                        aliases: vec!["05_post_processing", "post_processing", "pp", "05"],
                     },
                 ),
                 (
                     EtlStage::Other,
                     EtlStageData {
-                        id: &6,
+                        id: 6,
                         name: "other",
-                        aliases: ["other", "misc", "unknown", "oth"],
+                        aliases: vec!["other", "misc", "unknown", "oth"],
                     },
                 ),
             ])
@@ -242,11 +229,7 @@ impl EtlStage {
         Err(format!("Unknown ETL stage alias: {}", alias))
     }
 
-    pub fn as_str(&self) -> &'static str {
-        Self::etl_stage_data()[self].name
-    }
-
-    pub fn id(&self) -> &'static u8 {
+    pub fn id(&self) -> u8 {
         Self::etl_stage_data()[self].id
     }
 
@@ -254,7 +237,7 @@ impl EtlStage {
         Self::etl_stage_data()[self].name
     }
 
-    pub fn aliases(&self) -> &[&'static str; 4] {
+    pub fn aliases(&self) -> &Vec<&'static str> {
         &Self::etl_stage_data()[self].aliases
     }
 }
@@ -265,7 +248,7 @@ impl EtlStage {
 
 #[derive(Debug, Clone)]
 struct SystemTypeData {
-    id: &'static u8,
+    id: u8,
     name: &'static str,
     aliases: Vec<&'static str>,
 }
@@ -292,7 +275,7 @@ impl SystemType {
                 (
                     SystemType::Clickhouse,
                     SystemTypeData {
-                        id: &0,
+                        id: 0,
                         name: "clickhouse",
                         aliases: vec!["clickhouse", "click", "ch"],
                     },
@@ -300,7 +283,7 @@ impl SystemType {
                 (
                     SystemType::Duckdb,
                     SystemTypeData {
-                        id: &1,
+                        id: 1,
                         name: "duckdb",
                         aliases: vec!["duckdb", "duck", "ddb"],
                     },
@@ -308,7 +291,7 @@ impl SystemType {
                 (
                     SystemType::MySQL,
                     SystemTypeData {
-                        id: &2,
+                        id: 2,
                         name: "mysql",
                         aliases: vec!["mysql"],
                     },
@@ -316,7 +299,7 @@ impl SystemType {
                 (
                     SystemType::OracleDB,
                     SystemTypeData {
-                        id: &3,
+                        id: 3,
                         name: "oracle",
                         aliases: vec!["oracledb", "oracle", "plsql"],
                     },
@@ -324,7 +307,7 @@ impl SystemType {
                 (
                     SystemType::PostgreSQL,
                     SystemTypeData {
-                        id: &4,
+                        id: 4,
                         name: "postgres",
                         aliases: vec!["pg", "postgres", "pg_dwh", "postgres_db", "postgresdb"],
                     },
@@ -332,7 +315,7 @@ impl SystemType {
                 (
                     SystemType::SQLite,
                     SystemTypeData {
-                        id: &5,
+                        id: 5,
                         name: "sqlite",
                         aliases: vec!["sqlite"],
                     },
@@ -340,7 +323,7 @@ impl SystemType {
                 (
                     SystemType::SqlServer,
                     SystemTypeData {
-                        id: &6,
+                        id: 6,
                         name: "sqlserver",
                         aliases: vec!["sqlserver", "mssql", "tsql"],
                     },
@@ -348,7 +331,7 @@ impl SystemType {
                 (
                     SystemType::Vertica,
                     SystemTypeData {
-                        id: &7,
+                        id: 7,
                         name: "vertica",
                         aliases: vec!["vertica"],
                     },
@@ -356,7 +339,7 @@ impl SystemType {
                 (
                     SystemType::Other,
                     SystemTypeData {
-                        id: &8,
+                        id: 8,
                         name: "other",
                         aliases: vec![],
                     },
@@ -375,11 +358,7 @@ impl SystemType {
         Err(format!("Unknown system type alias: {}", alias))
     }
 
-    pub fn as_str(&self) -> &'static str {
-        Self::system_type_data()[self].name
-    }
-
-    pub fn id(&self) -> &'static u8 {
+    pub fn id(&self) -> u8 {
         Self::system_type_data()[self].id
     }
 
@@ -398,7 +377,7 @@ impl SystemType {
 
 #[derive(Debug, Clone)]
 struct TaskTypeData {
-    id: &'static u8,
+    id: u8,
     name: &'static str,
     extensions: Vec<&'static str>,
 }
@@ -424,7 +403,7 @@ impl TaskType {
                 (
                     TaskType::Sql,
                     TaskTypeData {
-                        id: &0,
+                        id: 0,
                         name: "sql",
                         extensions: vec!["sql", "psql", "tsql", "plpgsql"],
                     },
@@ -432,7 +411,7 @@ impl TaskType {
                 (
                     TaskType::Shell,
                     TaskTypeData {
-                        id: &1,
+                        id: 1,
                         name: "shell",
                         extensions: vec!["sh"],
                     },
@@ -440,7 +419,7 @@ impl TaskType {
                 (
                     TaskType::Powershell,
                     TaskTypeData {
-                        id: &2,
+                        id: 2,
                         name: "powershell",
                         extensions: vec!["ps1"],
                     },
@@ -448,7 +427,7 @@ impl TaskType {
                 (
                     TaskType::Python,
                     TaskTypeData {
-                        id: &3,
+                        id: 3,
                         name: "python",
                         extensions: vec!["py"],
                     },
@@ -456,7 +435,7 @@ impl TaskType {
                 (
                     TaskType::Graphql,
                     TaskTypeData {
-                        id: &4,
+                        id: 4,
                         name: "graphql",
                         extensions: vec!["graphql", "gql"],
                     },
@@ -464,7 +443,7 @@ impl TaskType {
                 (
                     TaskType::Json,
                     TaskTypeData {
-                        id: &5,
+                        id: 5,
                         name: "json",
                         extensions: vec!["json", "jsonl"],
                     },
@@ -472,7 +451,7 @@ impl TaskType {
                 (
                     TaskType::Yaml,
                     TaskTypeData {
-                        id: &6,
+                        id: 6,
                         name: "yaml",
                         extensions: vec!["yaml", "yml"],
                     },
@@ -480,7 +459,7 @@ impl TaskType {
                 (
                     TaskType::Other,
                     TaskTypeData {
-                        id: &8,
+                        id: 7,
                         name: "other",
                         extensions: vec![],
                     },
@@ -499,11 +478,7 @@ impl TaskType {
         Err(format!("Unknown task type extension: {}", ext))
     }
 
-    pub fn as_str(&self) -> &'static str {
-        Self::task_type_data()[self].name
-    }
-
-    pub fn id(&self) -> &'static u8 {
+    pub fn id(&self) -> u8 {
         Self::task_type_data()[self].id
     }
 

@@ -2,6 +2,8 @@ use pyo3::prelude::*;
 use std::collections::HashSet;
 use walkdir::WalkDir;
 
+use crate::py_utils::py_path_to_string;
+
 // FileScanner struct
 #[pyclass]
 pub struct FileScanner {
@@ -22,17 +24,7 @@ impl FileScanner {
 
     pub fn scan_files(&self, base_dir: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
         // Convert base_dir to string, supporting both str and pathlib.Path
-        let base_dir_str = if let Ok(path_str) = base_dir.extract::<String>() {
-            // Direct string
-            path_str
-        } else if let Ok(path_obj) = base_dir.call_method0("__str__") {
-            // pathlib.Path or other object with __str__ method
-            path_obj.extract::<String>()?
-        } else {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "base_dir must be a string or pathlib.Path object",
-            ));
-        };
+        let base_dir_str = py_path_to_string("base_dir", base_dir)?;
 
         let mut found: Vec<String> = Vec::new();
 
@@ -54,6 +46,8 @@ impl FileScanner {
 
     #[getter]
     fn extensions(&self) -> Vec<String> {
-        self.extensions.iter().cloned().collect()
+        let mut extensions: Vec<String> = self.extensions.iter().cloned().collect();
+        extensions.sort();
+        extensions
     }
 }

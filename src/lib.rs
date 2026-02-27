@@ -3,6 +3,7 @@ mod file_classifier;
 mod file_loader;
 mod file_scanner;
 mod models;
+mod py_utils;
 
 use pyo3::types::{PyAny, PySet};
 use std::collections::HashMap;
@@ -19,6 +20,8 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::PyObject;
+
+use crate::py_utils::py_path_to_string;
 
 // SubtaskManager with lazy loading
 #[pyclass]
@@ -58,17 +61,7 @@ impl SubtaskManager {
     #[new]
     fn new(base_path: &Bound<'_, PyAny>) -> PyResult<Self> {
         // Convert base_path to string, supporting both str and pathlib.Path
-        let base_path_str = if let Ok(path_str) = base_path.extract::<String>() {
-            // Direct string
-            path_str
-        } else if let Ok(path_obj) = base_path.call_method0("__str__") {
-            // pathlib.Path or other object with __str__ method
-            path_obj.extract::<String>()?
-        } else {
-            return Err(PyValueError::new_err(
-                "base_path must be a string or pathlib.Path object",
-            ));
-        };
+        let base_path_str = py_path_to_string("base_path", base_path)?;
 
         // Build extension list from TaskType variants
         let extensions: Vec<String> = TaskType::iter()
@@ -258,16 +251,14 @@ impl ParamType {
     #[getter]
     #[pyo3(name = "id")]
     fn param_type_id_py(&self) -> u8 {
-        *self.id()
+        self.id()
     }
-    
+
     #[staticmethod]
     #[pyo3(name = "from_alias")]
     fn from_alias_py(alias: String) -> PyResult<ParamType> {
         ParamType::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
     }
-    
-    
 }
 
 #[pymethods]
@@ -294,7 +285,7 @@ impl EtlStage {
     #[getter]
     #[pyo3(name = "id")]
     fn stage_id_py(&self) -> u8 {
-        *self.id()
+        self.id()
     }
 
     #[staticmethod]
@@ -317,7 +308,7 @@ impl SystemType {
     #[getter]
     #[pyo3(name = "id")]
     fn system_type_id_py(&self) -> u8 {
-        *self.id()
+        self.id()
     }
 
     #[getter]
@@ -351,7 +342,7 @@ impl TaskType {
     #[getter]
     #[pyo3(name = "id")]
     fn task_type_id_py(&self) -> u8 {
-        *self.id()
+        self.id()
     }
 
     #[getter]
@@ -374,6 +365,34 @@ impl TaskType {
 
 #[pymethods]
 impl Subtask {
+    #[getter]
+    #[pyo3(name = "original_name")]
+    pub fn original_name_py(&self) -> String {
+        self.original_name.clone()
+    }
+
+    #[getter]
+    #[pyo3(name = "original_path")]
+    pub fn original_path_py(&self) -> String {
+        self.original_path.clone()
+    }
+
+    pub fn __repr__(&self) -> String {
+        format!(
+            "Subtask(name='{}', path='{}', stage={:?}, entity={:?}, system_type={:?}, task_type={:?}, is_common={})",
+            self.name,
+            self.path,
+            self.stage,
+            self.entity,
+            self.system_type,
+            self.task_type,
+            self.is_common
+        )
+    }
+
+    pub fn __str__(&self) -> String {
+        self.__repr__()
+    }
     #[pyo3(name = "get_stored_params")]
     pub fn get_stored_params_py(&self, py: Python) -> PyResult<PyObject> {
         if let Some(stored) = &self.stored_params {
@@ -394,7 +413,7 @@ impl Subtask {
     pub fn get_params_py(
         &self,
         styles: Option<Vec<ParamType>>, // optional param styles from Python
-        py: Python,                  // we need the GIL to build Python objects
+        py: Python,                     // we need the GIL to build Python objects
     ) -> PyResult<PyObject> {
         // Map style names (strings) → ParamType
 
@@ -448,7 +467,7 @@ impl Subtask {
         for item in params.items() {
             let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
             let key = k.extract::<String>()?;
-            
+
             // Convert any Python object to string using its __str__ method
             let val = v.str()?.to_string();
             map.insert(key, val);
@@ -482,7 +501,7 @@ impl Subtask {
         for item in params.items() {
             let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
             let key = k.extract::<String>()?;
-            
+
             // Convert any Python object to string using its __str__ method
             let val = v.str()?.to_string();
             map.insert(key, val);
@@ -495,16 +514,29 @@ impl Subtask {
             Ok(new_subtask) => {
                 // Return the new Subtask as a Python object
                 Py::new(py, new_subtask)
-            },
+            }
             Err(e) => Err(PyValueError::new_err(e)),
         }
+    }
+}
+
+#[pymethods]
+impl RenderedSubtask {
+    pub fn __repr__(&self) -> String {
+        format!(
+            "RenderedSubtask(name='{}', path='{}', command={:?}, params={:?})",
+            self.name, self.path, self.command, self.params
+        )
+    }
+
+    pub fn __str__(&self) -> String {
+        self.__repr__()
     }
 }
 
 #[pymodule]
 fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SubtaskManager>()?;
-    // m.add_class::<models::Subtask>()?;
     m.add_class::<Subtask>()?;
     m.add_class::<RenderedSubtask>()?;
     m.add_class::<EtlStage>()?;

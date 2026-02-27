@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use strum::IntoEnumIterator;
 
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -12,7 +13,7 @@ pub struct Subtask {
     pub original_name: String,
     /// Original path template (never mutated)
     pub original_path: String,
-    
+
     /// Rendered name with parameters applied
     #[pyo3(get)]
     pub name: String,
@@ -56,7 +57,6 @@ pub struct RenderedSubtask {
     pub params: HashMap<String, String>,
 }
 
-
 impl Subtask {
     pub fn new(path: &str) -> Self {
         let p = std::path::Path::new(path);
@@ -81,7 +81,9 @@ impl Subtask {
         }
     }
     fn default_param_styles() -> Vec<ParamType> {
-        ParamType::ALL.to_vec()
+        ParamType::iter()
+            .filter(|style| *style != ParamType::Other)
+            .collect()
     }
 
     fn regex_for_style(style: ParamType) -> &'static Regex {
@@ -95,7 +97,10 @@ impl Subtask {
             ParamType::Curly => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| {
-                    Regex::new(r"(?:\$\{|\{\{|\{(?P<name>[A-Za-z0-9_.:-]+)\})").expect("valid regex")
+                    // Intentionally skip `${...}` and `{{...}}` while matching `{...}`:
+                    // the first two alternations match those prefixes without a `name` capture.
+                    Regex::new(r"(?:\$\{|\{\{|\{(?P<name>[A-Za-z0-9_.:-]+)\})")
+                        .expect("valid regex")
                 })
             }
             ParamType::Dollar => {
@@ -142,21 +147,7 @@ impl Subtask {
 
     /// Extract parameters from path and command, return new Subtask with params set
     pub fn extract_params(&self, styles: Option<&[ParamType]>) -> Self {
-        let mut all_params = HashSet::new();
-
-        // Extract from path
-        let path_params = Self::detect_parameters_in_text(&self.path, styles);
-        all_params.extend(path_params);
-
-        // Extract from command if present
-        if let Some(cmd) = &self.command {
-            let cmd_params = Self::detect_parameters_in_text(cmd, styles);
-            all_params.extend(cmd_params);
-        }
-
-        // Extract from name (optional - depending on your use case)
-        let name_params = Self::detect_parameters_in_text(&self.name, styles);
-        all_params.extend(name_params);
+        let all_params = self.get_params(styles);
 
         let mut new_subtask = self.clone();
         if !all_params.is_empty() {
@@ -230,19 +221,15 @@ impl Subtask {
                     if let Some(v) = params.get(&key.to_lowercase()) {
                         return v.to_string();
                     }
-                    // For $name pattern, some regex includes the leading $ in full match,
-                    // so return the full capture replacement in case of missing and ignore_missing==true
+                    // Keep track of missing keys; caller decides whether to error.
                     missing.push(key.to_string());
-                    if ignore_missing {
-                        // return original match unchanged
-                        return caps
-                            .get(0)
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_default();
-                    } else {
-                        // produce a sentinel; caller will detect missing_keys and can error
-                        return format!("__MISSING_PARAM_{}__", key);
+                    if !ignore_missing {
+                        // continue replacing as identity and report the missing key later
                     }
+                    return caps
+                        .get(0)
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_default();
                 }
                 caps.get(0)
                     .map(|m| m.as_str().to_string())
@@ -319,8 +306,9 @@ impl Subtask {
     /// Lightweight render without parameters. Returns only the rendered values.
     pub fn render_lightweight(&self) -> RenderedSubtask {
         let empty_params = HashMap::new();
-        self.render_with_params(&empty_params, None, true)
-            .expect("render_lightweight should never fail with empty params and ignore_missing=true")
+        self.render_with_params(&empty_params, None, true).expect(
+            "render_lightweight should never fail with empty params and ignore_missing=true",
+        )
     }
 
     /// Apply parameters to this subtask (path, command, and name). Returns new Subtask with applied parameters.
@@ -338,7 +326,12 @@ impl Subtask {
         let (new_path, missing_path) =
             Self::apply_parameters_to_text(&self.original_path, params, styles, ignore_missing);
         all_missing.extend(missing_path);
-    
+
+        // Apply from ORIGINAL name template
+        let (new_name, missing_name) =
+            Self::apply_parameters_to_text(&self.original_name, params, styles, ignore_missing);
+        all_missing.extend(missing_name);
+
         // command: APPLY FROM TEMPLATE → STORE IN rendered_command
         let rendered_command = if let Some(template_cmd) = &self.command {
             let (rendered, missing_cmd) =
@@ -348,11 +341,6 @@ impl Subtask {
         } else {
             None
         };
-
-        // Apply from ORIGINAL name template
-        let (new_name, missing_name) =
-            Self::apply_parameters_to_text(&self.original_name, params, styles, ignore_missing);
-        all_missing.extend(missing_name);
 
         if !all_missing.is_empty() && !ignore_missing {
             all_missing.sort();
@@ -580,7 +568,7 @@ mod tests {
             Subtask::apply_parameters_to_text(text, &params, Some(&[ParamType::Curly]), false);
 
         assert_eq!(missing, vec!["name"]);
-        assert!(out.contains("__MISSING_PARAM_name__"));
+        assert_eq!(out, "Hello {name}");
     }
 
     #[test]
@@ -674,7 +662,7 @@ mod tests {
         assert_eq!(s1.original_path, "templates/report_{{env}}.sql");
         assert_eq!(s1.original_name, "report_{{env}}.sql");
         assert_eq!(s1.command.as_ref().unwrap(), "psql -h $host -U $user");
-        
+
         assert_eq!(s2.original_path, "templates/report_{{env}}.sql");
         assert_eq!(s2.original_name, "report_{{env}}.sql");
         assert_eq!(s2.command.as_ref().unwrap(), "psql -h $host -U $user");
@@ -701,7 +689,10 @@ mod tests {
         // Verify rendered values changed in the NEW instance
         assert_eq!(applied.path, "path/2025/file_test.sql");
         assert_eq!(applied.name, "file_test.sql");
-        assert_eq!(applied.rendered_command.as_ref().unwrap(), "run on localhost");
+        assert_eq!(
+            applied.rendered_command.as_ref().unwrap(),
+            "run on localhost"
+        );
 
         // Verify original instance is completely unchanged
         assert_eq!(s.path, "path/{date}/file_{env}.sql");
@@ -724,7 +715,10 @@ mod tests {
         s.command = Some("psql -h $host".into());
         let applied = s.apply_parameters(&params, None, false).unwrap();
         assert_eq!(applied.get_command(), Some(&"psql -h prod.db".to_string()));
-        assert_eq!(applied.rendered_command, Some("psql -h prod.db".to_string()));
+        assert_eq!(
+            applied.rendered_command,
+            Some("psql -h prod.db".to_string())
+        );
     }
 
     #[test]
@@ -736,8 +730,14 @@ mod tests {
         let rendered = s.render();
 
         // Should have rendered_command populated even though no params were replaced
-        assert_eq!(rendered.get_command(), Some(&"psql -h localhost -U admin".to_string()));
-        assert_eq!(rendered.rendered_command, Some("psql -h localhost -U admin".to_string()));
+        assert_eq!(
+            rendered.get_command(),
+            Some(&"psql -h localhost -U admin".to_string())
+        );
+        assert_eq!(
+            rendered.rendered_command,
+            Some("psql -h localhost -U admin".to_string())
+        );
         assert_eq!(rendered.path, "report.sql");
         assert_eq!(rendered.name, "report.sql");
     }

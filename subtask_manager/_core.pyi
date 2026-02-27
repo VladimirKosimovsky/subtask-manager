@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from typing_extensions import override
 
@@ -6,161 +7,142 @@ class TaskType:
     id: int
     name: str
     extensions: list[str]
-    Sql:TaskType
-    Shell:TaskType
-    Powershell:TaskType
-    Python:TaskType
-    Graphql:TaskType
-    Json:TaskType
-    Yaml:TaskType
-    Other:TaskType
-    # Constructor - private to prevent direct instantiation
+
+    Sql: "TaskType"
+    Shell: "TaskType"
+    Powershell: "TaskType"
+    Python: "TaskType"
+    Graphql: "TaskType"
+    Json: "TaskType"
+    Yaml: "TaskType"
+    Other: "TaskType"
+
     def __init__(self, *args: object, **kwargs: object) -> None: ...
-    
     @classmethod
-    def from_extension(
-        cls, extension: str,
-    ) -> SystemType: ...
-    
-    # String representation
+    def from_extension(cls, extension: str) -> "TaskType": ...
     @override
     def __str__(self) -> str: ...
     @override
     def __repr__(self) -> str: ...
-
-    # Comparisons
     @override
     def __eq__(self, other: object) -> bool: ...
     @override
     def __ne__(self, other: object) -> bool: ...
     @override
     def __hash__(self) -> int: ...
+
 class SystemType:
     id: int
     name: str
     aliases: list[str]
-    Clickhouse: SystemType
-    Duckdb: SystemType
-    MySQL: SystemType
-    OracleDB: SystemType
-    PostgreSQL: SystemType
-    SQLite: SystemType
-    SqlServer: SystemType
-    Vertica: SystemType
-    Other: SystemType
-    # Constructor - private to prevent direct instantiation
+
+    Clickhouse: "SystemType"
+    Duckdb: "SystemType"
+    MySQL: "SystemType"
+    OracleDB: "SystemType"
+    PostgreSQL: "SystemType"
+    SQLite: "SystemType"
+    SqlServer: "SystemType"
+    Vertica: "SystemType"
+    Other: "SystemType"
+
     def __init__(self, *args: object, **kwargs: object) -> None: ...
-    
     @classmethod
-    def from_alias(
-        cls, alias: str,
-    ) -> SystemType: ...
-    
-    # String representation
+    def from_alias(cls, alias: str) -> "SystemType": ...
     @override
     def __str__(self) -> str: ...
     @override
     def __repr__(self) -> str: ...
-
-    # Comparisons
     @override
     def __eq__(self, other: object) -> bool: ...
     @override
     def __ne__(self, other: object) -> bool: ...
     @override
     def __hash__(self) -> int: ...
-    
 
 class EtlStage:
     id: int
     name: str
     aliases: list[str]
-    # Enum variants as class attributes
-    Extract: EtlStage
-    Transform: EtlStage
-    Load: EtlStage
-    Setup: EtlStage
-    Cleanup: EtlStage
-    Postprocessing: EtlStage
 
-    # Constructor - private to prevent direct instantiation
+    Setup: "EtlStage"
+    Extract: "EtlStage"
+    Transform: "EtlStage"
+    Load: "EtlStage"
+    Cleanup: "EtlStage"
+    Postprocessing: "EtlStage"
+    Other: "EtlStage"
+
     def __init__(self, *args: object, **kwargs: object) -> None: ...
-
-    # String representation
+    @classmethod
+    def from_alias(cls, alias: str) -> "EtlStage": ...
     @override
     def __str__(self) -> str: ...
     @override
     def __repr__(self) -> str: ...
-
-    # Comparisons
     @override
     def __eq__(self, other: object) -> bool: ...
     @override
     def __ne__(self, other: object) -> bool: ...
     @override
     def __hash__(self) -> int: ...
-    
-    @classmethod
-    def from_alias(
-        cls, alias: str,
-    ) -> EtlStage: ...
 
 class ParamType:
     id: int
     name: str
     aliases: list[str]
-    #
-    # ALL: list[ParamType]
-    # Enum variants as class attributes
-    Curly:ParamType
-    Dollar:ParamType
-    DollarBrace:ParamType
-    DoubleCurly:ParamType
-    DoubleUnderscore:ParamType
-    Percent:ParamType
-    Angle:ParamType
-    Other:ParamType
 
-    def __init__(
-        self,
-        id: int,
-        name: str,
-        aliases: list[str],
-    ) -> None: ...
+    Curly: "ParamType"
+    Dollar: "ParamType"
+    DollarBrace: "ParamType"
+    DoubleCurly: "ParamType"
+    DoubleUnderscore: "ParamType"
+    Percent: "ParamType"
+    Angle: "ParamType"
+    Other: "ParamType"
+
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
+    @classmethod
+    def from_alias(cls, alias: str) -> "ParamType": ...
     @override
     def __repr__(self) -> str: ...
     @override
     def __str__(self) -> str: ...
-    
-    @classmethod
-    def from_alias(
-        cls, alias: str,
-    ) -> ParamType: ...
+    @override
+    def __eq__(self, other: object) -> bool: ...
+    @override
+    def __ne__(self, other: object) -> bool: ...
+    @override
+    def __hash__(self) -> int: ...
 
 class RenderedSubtask:
     """Lightweight structure containing only rendered values after parameter application."""
-    
+
     name: str
     path: str
     command: str | None
     params: dict[str, str]
-    
+
     @override
     def __repr__(self) -> str: ...
     @override
     def __str__(self) -> str: ...
 
-
 class Subtask:
+    original_name: str
+    original_path: str
+
     stage: EtlStage | None
     entity: str | None
     system_type: SystemType | None
     task_type: TaskType | None
     is_common: bool
+
     name: str
     path: str
     command: str | None
     rendered_command: str | None
+    params: set[str] | None
 
     def __init__(
         self,
@@ -177,55 +159,49 @@ class Subtask:
     def __repr__(self) -> str: ...
     @override
     def __str__(self) -> str: ...
-    
     def apply_parameters(
-        self, 
-        params: dict[str, str], 
-        styles: list[ParamType] | None = None, 
-        ignore_missing: bool = False
-    ) -> Subtask:
+        self,
+        params: dict[str, Any],
+        styles: list[ParamType] | None = None,
+        ignore_missing: bool = False,
+    ) -> "Subtask":
         """
         Apply parameters to this subtask and return a new Subtask with applied parameters.
         The original subtask remains unchanged (immutable).
         """
         ...
-    
-    def get_params(
-        self, 
-        styles: list[ParamType] | None = None
-    ) -> set[str]:
+
+    def get_params(self, styles: list[ParamType] | None = None) -> set[str]:
         """
-        Returns a set of parameter names that are used in the command.
+        Returns a set of parameter names that are used in the subtask fields.
         """
         ...
-    
-    def get_stored_params(self) -> dict[str, str]:
-        ...
-    
+
+    def get_stored_params(self) -> dict[str, str]: ...
     def get_command(self) -> str | None:
         """
         Get the command to execute. Returns rendered_command if available, otherwise command template.
         """
         ...
-    
-    def render(self) -> Subtask:
+
+    def render(self) -> "Subtask":
         """
         Render this subtask - resolves all templates even if no parameters are needed.
         Equivalent to calling apply_parameters with empty params.
         """
         ...
-    
+
     def render_lightweight(self) -> RenderedSubtask:
         """
         Lightweight render without parameters. Returns only the rendered values.
         """
         ...
-    
+
     def render_with_params(
         self,
-        params: dict[str, str],
+        params: dict[str, Any],
         styles: list[ParamType] | None = None,
-        ignore_missing: bool = False
+        ignore_missing: bool = False,
     ) -> RenderedSubtask:
         """
         Apply parameters and return a lightweight RenderedSubtask with only the output values.
@@ -236,10 +212,12 @@ class Subtask:
 class SubtaskManager:
     base_path: str
     subtasks: list[Subtask]
-    classifier: FileClassifier
-    
-    def __init__(self, base_path: str | Path) -> None: ...
+    file_paths: list[str]
+    num_files: int
+    classifier: "FileClassifier"
 
+    def __init__(self, base_path: str | Path) -> None: ...
+    def load_all(self) -> None: ...
     def get_tasks(
         self,
         etl_stage: EtlStage | None = None,
@@ -249,37 +227,32 @@ class SubtaskManager:
         is_common: bool | None = None,
         include_common: bool | None = True,
     ) -> list[Subtask]: ...
-    def get_task(
-        self,
-        name: str,
-        entity: str | None = None,
-    ) -> Subtask: ...
-    
+    def get_task(self, name: str, entity: str | None = None) -> Subtask: ...
 
 class FileScanner:
     """Scanner for finding files with specific extensions."""
-    
+
     def __init__(self, extensions: list[str]) -> None:
         """
         Initialize FileScanner with file extensions to search for.
-        
+
         Args:
             extensions: List of file extensions (with or without leading dot)
         """
         ...
-    
+
     def scan_files(self, base_dir: str | Path) -> list[str]:
         """
         Scan directory recursively for files with matching extensions.
-        
+
         Args:
             base_dir: Root directory to scan (string path or pathlib.Path)
-            
+
         Returns:
             List of absolute file paths
         """
         ...
-    
+
     @property
     def extensions(self) -> list[str]:
         """Get the normalized extensions this scanner searches for."""
@@ -287,32 +260,32 @@ class FileScanner:
 
 class FileClassifier:
     """Classifier for converting file paths into Subtask objects based on folder structure."""
-    
+
     base_path: str
-    
+
     def __init__(self, base_path: str | Path) -> None:
         """
         Initialize FileClassifier with a base path.
-        
+
         Args:
             base_path: Base directory path (string path or pathlib.Path)
         """
         ...
-    
+
     def classify(self, file_path: str | Path) -> Subtask:
         """
         Classify a file path into a Subtask based on its location relative to base_path.
-        
+
         Args:
             file_path: Path to the file to classify (string path or pathlib.Path)
-            
+
         Returns:
             A Subtask object with extracted metadata
-            
+
         Raises:
-            RuntimeError: If the folder structure is invalid or task type cannot be determined
+            ValueError: If the folder structure is invalid or task type cannot be determined
         """
         ...
-    
+
     @override
     def __repr__(self) -> str: ...

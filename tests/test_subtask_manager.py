@@ -35,6 +35,7 @@ def _create_etl_structure(base: Path):
 # Test cases
 # --------------------------
 
+
 def test_discovery_and_classification(tmp_path: Path):
     base = _create_etl_structure(tmp_path)
 
@@ -44,7 +45,7 @@ def test_discovery_and_classification(tmp_path: Path):
 
     for subtask in manager.subtasks:
         _ = subtask.name
-    
+
     sql_task = next(s for s in manager.subtasks if s.name == "get_customers.sql")
     assert sql_task.stage == EtlStage.Extract
     assert sql_task.system_type == SystemType.PostgreSQL
@@ -111,32 +112,33 @@ def test_invalid_folder_structure(tmp_path: Path):
     # The classifier should raise ValueError due to deep nesting
     classifier = FileClassifier(tmp_path)
     with pytest.raises(ValueError):
-        _ =classifier.classify(f)
+        _ = classifier.classify(f)
 
 
 def test_existing_path():
     base = Path("tests/test_data/subtasks")
-    
-    sm:SubtaskManager = SubtaskManager(base)
-    
+
+    sm: SubtaskManager = SubtaskManager(base)
+
     assert len(sm.subtasks) == 16
-    
+
     extract_customers_task = sm.get_task("extract_data.sql")
     assert extract_customers_task.name == "extract_data.sql"
     assert extract_customers_task.entity == "customers"
-    
-    expected_content="\r\n".join([
-    "select *",
-    "from public.customers;"
-    ])
-    assert extract_customers_task.render().command == expected_content
-    
+
+    expected_lines = [
+        "select *",
+        "from public.customers;",
+    ]
+    rendered_command = extract_customers_task.render().command
+    assert rendered_command is not None
+    assert rendered_command.splitlines() == expected_lines
+
     tasks = sm.get_tasks(is_common=True)
     assert len(tasks) == 2
-    
+
     tasks = sm.get_tasks(etl_stage=EtlStage.Extract, include_common=False)
     assert len(tasks) == 1
-    
-    
+
     tasks = sm.get_tasks(entity="customers")
     assert len(tasks) == 3

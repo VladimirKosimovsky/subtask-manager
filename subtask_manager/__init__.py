@@ -10,6 +10,13 @@ from ._core import (
     TaskType,
 )
 
+
+def main() -> int:
+    """CLI entry point for the package."""
+    print("subtask-manager: library package installed and ready to use.")
+    return 0
+
+
 __all__ = [
     "EtlStage",
     "FileClassifier",
@@ -20,4 +27,5 @@ __all__ = [
     "SubtaskManager",
     "SystemType",
     "TaskType",
+    "main",
 ]
