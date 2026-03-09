@@ -365,6 +365,36 @@ impl TaskType {
 
 #[pymethods]
 impl Subtask {
+    #[new]
+    #[pyo3(signature = (name="".to_string(), path=None, stage=None, entity=None, system_type=None, task_type=None, is_common=false, command=None))]
+    pub fn py_new(
+        name: String,
+        path: Option<String>,
+        stage: Option<EtlStage>,
+        entity: Option<String>,
+        system_type: Option<SystemType>,
+        task_type: Option<TaskType>,
+        is_common: bool,
+        command: Option<String>,
+    ) -> Self {
+        let resolved_path = path.unwrap_or_else(|| name.clone());
+        Subtask {
+            original_name: name.clone(),
+            original_path: resolved_path.clone(),
+            name,
+            path: resolved_path,
+            task_type,
+            system_type,
+            stage,
+            entity,
+            is_common,
+            command,
+            rendered_command: None,
+            params: None,
+            stored_params: None,
+        }
+    }
+
     #[getter]
     #[pyo3(name = "original_name")]
     pub fn original_name_py(&self) -> String {
