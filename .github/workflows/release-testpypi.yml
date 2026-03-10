@@ -29,14 +29,12 @@ jobs:
           - os: windows-latest
             target: x86_64
             manylinux: auto
-          # macOS x86_64
-          - os: macos-13
-            target: x86_64
-            manylinux: auto
-          # macOS Apple Silicon
-          - os: macos-14
+          # macOS Apple Silicon (universal — x86_64 users run via Rosetta 2)
+          - os: macos-latest
             target: aarch64
             manylinux: auto
+          # macOS x86_64 native
+          - os: macos-latest
 
     steps:
       - name: Checkout
