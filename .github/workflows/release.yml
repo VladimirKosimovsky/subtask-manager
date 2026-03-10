@@ -35,6 +35,8 @@ jobs:
             manylinux: auto
           # macOS x86_64 native
           - os: macos-latest
+            target: x86_64
+            manylinux: auto
 
 
     steps:
