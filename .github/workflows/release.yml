@@ -17,22 +17,47 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux x86_64 — builds inside manylinux container
           - os: ubuntu-latest
             target: x86_64
+            manylinux: auto
+          # Linux aarch64 (cross-compiled via QEMU)
+          - os: ubuntu-latest
+            target: aarch64
+            manylinux: auto
+          # Windows x86_64
           - os: windows-latest
             target: x86_64
+            manylinux: auto
+          # macOS x86_64
+          - os: macos-13
+            target: x86_64
+            manylinux: auto
+          # macOS Apple Silicon
+          - os: macos-14
+            target: aarch64
+            manylinux: auto
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Needed for Linux aarch64 cross-compilation
+      - name: Set up QEMU
+        if: matrix.target == 'aarch64' && runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release --out dist
           target: ${{ matrix.target }}
-          manylinux: 2_17
+          manylinux: ${{ matrix.manylinux }}
+          # --find-interpreter builds for all detected Python versions (3.8+)
+          # --release enables optimizations
+          args: --release --find-interpreter --out dist
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
@@ -85,6 +110,7 @@ jobs:
         run: |
           mkdir -p final-dist
           find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec cp {} final-dist/ \;
+          echo "=== Wheels to publish ==="
           ls -lah final-dist
 
       - name: Publish to PyPI
