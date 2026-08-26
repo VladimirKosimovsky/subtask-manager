@@ -9,7 +9,7 @@ class FileScanner:
         Initialize scanner with allowed extensions.
         Extensions should be provided with a leading dot, e.g. [".csv", ".txt"].
         """
-        self.extensions:set[str] = {ext.lower() for ext in extensions}
+        self.extensions: set[str] = {ext.lower() for ext in extensions}
 
     def scan_files(self, directory: str | Path) -> Iterator[Path]:
         """

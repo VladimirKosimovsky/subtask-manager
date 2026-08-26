@@ -1,3 +1,4 @@
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -87,23 +88,23 @@ class EtlStage:
     @override
     def __hash__(self) -> int: ...
 
-class ParamType:
+class ParamStyle:
     id: int
     name: str
     aliases: list[str]
 
-    Curly: "ParamType"
-    Dollar: "ParamType"
-    DollarBrace: "ParamType"
-    DoubleCurly: "ParamType"
-    DoubleUnderscore: "ParamType"
-    Percent: "ParamType"
-    Angle: "ParamType"
-    Other: "ParamType"
+    Curly: "ParamStyle"
+    Dollar: "ParamStyle"
+    DollarBrace: "ParamStyle"
+    DoubleCurly: "ParamStyle"
+    DoubleUnderscore: "ParamStyle"
+    Percent: "ParamStyle"
+    Angle: "ParamStyle"
+    Other: "ParamStyle"
 
     def __init__(self, *args: object, **kwargs: object) -> None: ...
     @classmethod
-    def from_alias(cls, alias: str) -> "ParamType": ...
+    def from_alias(cls, alias: str) -> "ParamStyle": ...
     @override
     def __repr__(self) -> str: ...
     @override
@@ -114,6 +115,164 @@ class ParamType:
     def __ne__(self, other: object) -> bool: ...
     @override
     def __hash__(self) -> int: ...
+
+class SqlParamStyle:
+    """Placeholder syntax of the target DB driver (PEP 249 `paramstyle`)."""
+
+    id: int
+    name: str
+    aliases: list[str]
+    is_named: bool
+
+    Qmark: "SqlParamStyle"
+    """`?` - sqlite3, duckdb, pyodbc."""
+    Numeric: "SqlParamStyle"
+    """`$1`, `$2` - asyncpg, psycopg native."""
+    Named: "SqlParamStyle"
+    """`:name` - oracledb, sqlalchemy text()."""
+    Format: "SqlParamStyle"
+    """`%s` - psycopg2, mysqlclient."""
+    Pyformat: "SqlParamStyle"
+    """`%(name)s` - psycopg2, mysqlclient (named form)."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
+    @classmethod
+    def from_alias(cls, alias: str) -> "SqlParamStyle": ...
+    @override
+    def __str__(self) -> str: ...
+    @override
+    def __repr__(self) -> str: ...
+    @override
+    def __eq__(self, other: object) -> bool: ...
+    @override
+    def __ne__(self, other: object) -> bool: ...
+    @override
+    def __hash__(self) -> int: ...
+
+class StatementKind:
+    """The kind of statement found in a task body."""
+
+    id: int
+    name: str
+    aliases: list[str]
+    is_destructive: bool
+    """True for statements that destroy data or schema irreversibly."""
+
+    Select: "StatementKind"
+    Insert: "StatementKind"
+    Update: "StatementKind"
+    Delete: "StatementKind"
+    Merge: "StatementKind"
+    Truncate: "StatementKind"
+    Drop: "StatementKind"
+    Create: "StatementKind"
+    Alter: "StatementKind"
+    Grant: "StatementKind"
+    Revoke: "StatementKind"
+    Copy: "StatementKind"
+    Call: "StatementKind"
+    Transaction: "StatementKind"
+    Other: "StatementKind"
+
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
+    @classmethod
+    def from_alias(cls, alias: str) -> "StatementKind": ...
+    @override
+    def __str__(self) -> str: ...
+    @override
+    def __repr__(self) -> str: ...
+    @override
+    def __eq__(self, other: object) -> bool: ...
+    @override
+    def __ne__(self, other: object) -> bool: ...
+    @override
+    def __hash__(self) -> int: ...
+
+class SqlAnalysis:
+    """What a SQL body was found to do.
+
+    Analysis always fails open: SQL the dialect cannot parse comes back with
+    `parsed = False` and an empty verdict. That means *not analysed*, never
+    *safe*.
+    """
+
+    parsed: bool
+    """False when the dialect could not parse the body."""
+    dialect: str
+    """The `sqlparser` dialect used, derived from the task's `system_type`."""
+    statements: list[StatementKind]
+    """Statement kinds, in the order they appear."""
+    tables: list[str]
+    """Relations referenced, deduplicated. Placeholders are reported by name."""
+    warnings: list[str]
+    """Notes about risky constructs (unqualified DELETE/UPDATE, DROP, ...)."""
+    error: str | None
+    """Parser message when `parsed` is False."""
+    is_destructive: bool
+    """True when any statement is a DROP, TRUNCATE or DELETE."""
+
+    def has(self, kind: StatementKind) -> bool:
+        """Whether a given statement kind appears in the body."""
+        ...
+
+    @override
+    def __repr__(self) -> str: ...
+    @override
+    def __str__(self) -> str: ...
+
+class PreparedQuery:
+    """A driver-ready statement: rewritten SQL plus the values to bind.
+
+    Unpacks straight into a DB-API call::
+
+        query, params = subtask.prepare({"id": 7})
+        cursor.execute(query, params)
+    """
+
+    query: str
+    """SQL with driver placeholders in place of template placeholders."""
+    names: list[str]
+    """Parameter names in bind order."""
+    param_style: SqlParamStyle
+    params: Sequence[Any] | Mapping[str, Any]
+    """`list` for positional styles, `dict` for named ones."""
+
+    def as_tuple(self) -> tuple[str, Sequence[Any] | Mapping[str, Any]]: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[Any]: ...
+    def __getitem__(self, index: int) -> Any: ...
+    @override
+    def __repr__(self) -> str: ...
+
+class SqlGuard:
+    """Baseline SQL-injection checks for *interpolated* values.
+
+    Binding via `Subtask.prepare()` is always preferable; this is the safety net
+    for values that have to become part of the SQL text.
+    """
+
+    @staticmethod
+    def is_safe(value: str) -> bool:
+        """True when the value carries none of the rejected patterns."""
+        ...
+
+    @staticmethod
+    def find_issues(value: str) -> list[str]:
+        """Every reason the value would be rejected."""
+        ...
+
+    @staticmethod
+    def check(value: str, name: str = "value") -> None:
+        """Raise `ValueError` if the value is unsafe to interpolate."""
+        ...
+
+    @staticmethod
+    def check_identifier(value: str) -> str:
+        """Validate a table/schema/column name that must be inlined."""
+        ...
+
+    @override
+    def __repr__(self) -> str: ...
 
 class RenderedSubtask:
     """Lightweight structure containing only rendered values after parameter application."""
@@ -162,16 +321,68 @@ class Subtask:
     def apply_parameters(
         self,
         params: dict[str, Any],
-        styles: list[ParamType] | None = None,
+        styles: list[ParamStyle] | None = None,
         ignore_missing: bool = False,
+        guard: bool | None = None,
+        forbid: list[StatementKind] | None = None,
     ) -> "Subtask":
         """
         Apply parameters to this subtask and return a new Subtask with applied parameters.
         The original subtask remains unchanged (immutable).
+
+        Values are interpolated into the command text. `guard=None` runs the SQL
+        injection guard for SQL tasks only; pass `True`/`False` to force it.
+        Raises `ValueError` when a guarded value is unsafe.
+
+        `forbid` rejects the task when the resulting SQL runs one of the given
+        statement kinds. It fails open: SQL that does not parse is allowed
+        through, since it cannot be judged.
+
+        Prefer `prepare()` whenever the driver can bind the value.
         """
         ...
 
-    def get_params(self, styles: list[ParamType] | None = None) -> set[str]:
+    def analyze(
+        self,
+        params: dict[str, Any] | None = None,
+        styles: list[ParamStyle] | None = None,
+    ) -> SqlAnalysis:
+        """
+        Parse the command with the dialect implied by `system_type` and report
+        what it does: statement kinds, tables touched, and warnings.
+
+        With `params`, the rendered command is analysed, which also surfaces
+        anything an interpolated value added to the statement. Without them a
+        sentinel-substituted copy of the template is analysed instead.
+
+        Never raises. Check `parsed` before trusting a negative result.
+        """
+        ...
+
+    def prepare(
+        self,
+        params: dict[str, Any] | None = None,
+        styles: list[ParamStyle] | None = None,
+        param_style: SqlParamStyle = ...,
+        identifiers: list[str] | None = None,
+        ignore_missing: bool = False,
+        forbid: list[StatementKind] | None = None,
+    ) -> PreparedQuery:
+        """
+        Rewrite the command into a driver-ready `(query, params)` pair instead of
+        interpolating values into the SQL text.
+
+        Placeholders wrapped in quotes (`'{name}'`) lose their quotes so the value
+        is genuinely bound. Names listed in `identifiers` are inlined after
+        identifier validation, since no driver can bind a table name.
+
+        Raises `ValueError` if a placeholder cannot be bound (it is only part of a
+        string literal), if an identifier is invalid, or if a parameter is missing
+        and `ignore_missing` is False.
+        """
+        ...
+
+    def get_params(self, styles: list[ParamStyle] | None = None) -> set[str]:
         """
         Returns a set of parameter names that are used in the subtask fields.
         """
@@ -200,8 +411,10 @@ class Subtask:
     def render_with_params(
         self,
         params: dict[str, Any],
-        styles: list[ParamType] | None = None,
+        styles: list[ParamStyle] | None = None,
         ignore_missing: bool = False,
+        guard: bool | None = None,
+        forbid: list[StatementKind] | None = None,
     ) -> RenderedSubtask:
         """
         Apply parameters and return a lightweight RenderedSubtask with only the output values.

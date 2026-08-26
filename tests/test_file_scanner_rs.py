@@ -7,13 +7,16 @@ import pytest
 from subtask_manager import FileScanner
 
 
-@pytest.mark.parametrize("extensions,expected", [
-    ([".txt"], ["a.txt", "b.txt"]),
-    ([".csv"], ["c.csv"]),
-    ([".txt", ".csv"], ["a.txt", "b.txt", "c.csv"]),
-    ([".md"], []),
-])
-def test_scan_files(tmp_path: Path, extensions:list[str], expected:list[str]):
+@pytest.mark.parametrize(
+    "extensions,expected",
+    [
+        ([".txt"], ["a.txt", "b.txt"]),
+        ([".csv"], ["c.csv"]),
+        ([".txt", ".csv"], ["a.txt", "b.txt", "c.csv"]),
+        ([".md"], []),
+    ],
+)
+def test_scan_files(tmp_path: Path, extensions: list[str], expected: list[str]):
     # Arrange: create test files
     filenames = ["a.txt", "b.txt", "c.csv", "ignore.tmp"]
     for fname in filenames:

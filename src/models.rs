@@ -1,4 +1,7 @@
-use crate::enums::{EtlStage, ParamType, SystemType, TaskType};
+use crate::enums::{EtlStage, ParamStyle, SqlParamStyle, SystemType, TaskType};
+use crate::sql_analysis::{self, SqlAnalysis, StatementKind};
+use crate::sql_binding::{bind_text, BoundQuery};
+use crate::sql_guard;
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use regex::Regex;
@@ -80,21 +83,21 @@ impl Subtask {
             rendered_command: None,
         }
     }
-    fn default_param_styles() -> Vec<ParamType> {
-        ParamType::iter()
-            .filter(|style| *style != ParamType::Other)
+    pub(crate) fn default_param_styles() -> Vec<ParamStyle> {
+        ParamStyle::iter()
+            .filter(|style| *style != ParamStyle::Other)
             .collect()
     }
 
-    fn regex_for_style(style: ParamType) -> &'static Regex {
+    pub(crate) fn regex_for_style(style: ParamStyle) -> &'static Regex {
         match style {
-            ParamType::DoubleCurly => {
+            ParamStyle::DoubleCurly => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| {
                     Regex::new(r"\{\{(?P<name>[A-Za-z0-9_.:-]+)\}\}").expect("valid regex")
                 })
             }
-            ParamType::Curly => {
+            ParamStyle::Curly => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| {
                     // Intentionally skip `${...}` and `{{...}}` while matching `{...}`:
@@ -103,29 +106,29 @@ impl Subtask {
                         .expect("valid regex")
                 })
             }
-            ParamType::Dollar => {
+            ParamStyle::Dollar => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| Regex::new(r"\$(?P<name>[A-Za-z0-9_]+)").unwrap())
             }
-            ParamType::DollarBrace => {
+            ParamStyle::DollarBrace => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| {
                     Regex::new(r"\$\{(?P<name>[A-Za-z0-9_.:-]+)\}").expect("valid regex")
                 })
             }
-            ParamType::DoubleUnderscore => {
+            ParamStyle::DoubleUnderscore => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| Regex::new(r"__(?P<name>[A-Za-z0-9_]+)__").unwrap())
             }
-            ParamType::Percent => {
+            ParamStyle::Percent => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| Regex::new(r"%(?P<name>[A-Za-z0-9_]+)%").unwrap())
             }
-            ParamType::Angle => {
+            ParamStyle::Angle => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| Regex::new(r"<(?P<name>[A-Za-z0-9_]+)>").unwrap())
             }
-            ParamType::Other => {
+            ParamStyle::Other => {
                 static RE: OnceCell<Regex> = OnceCell::new();
                 RE.get_or_init(|| Regex::new(r"$^").unwrap()) // matches nothing
             }
@@ -146,7 +149,7 @@ impl Subtask {
     }
 
     /// Extract parameters from path and command, return new Subtask with params set
-    pub fn extract_params(&self, styles: Option<&[ParamType]>) -> Self {
+    pub fn extract_params(&self, styles: Option<&[ParamStyle]>) -> Self {
         let all_params = self.get_params(styles);
 
         let mut new_subtask = self.clone();
@@ -157,7 +160,7 @@ impl Subtask {
     }
 
     /// Getter method to extract parameters (computed property)
-    pub fn get_params(&self, styles: Option<&[ParamType]>) -> HashSet<String> {
+    pub fn get_params(&self, styles: Option<&[ParamStyle]>) -> HashSet<String> {
         let mut all_params = HashSet::new();
 
         // Extract from path
@@ -178,8 +181,8 @@ impl Subtask {
     }
 
     /// Find parameter names according to given param styles.
-    /// If `styles` is None, uses ParamType::default_order()
-    pub fn detect_parameters_in_text(text: &str, styles: Option<&[ParamType]>) -> HashSet<String> {
+    /// If `styles` is None, uses ParamStyle::default_order()
+    pub fn detect_parameters_in_text(text: &str, styles: Option<&[ParamStyle]>) -> HashSet<String> {
         let mut result = HashSet::new();
         let default_styles = Subtask::default_param_styles();
         let use_styles = styles.unwrap_or(&default_styles);
@@ -198,7 +201,7 @@ impl Subtask {
     pub fn apply_parameters_to_text(
         text: &str,
         params: &HashMap<String, String>,
-        styles: Option<&[ParamType]>,
+        styles: Option<&[ParamStyle]>,
         ignore_missing: bool,
     ) -> (String, Vec<String>) {
         let default_styles = Subtask::default_param_styles();
@@ -261,9 +264,25 @@ impl Subtask {
     pub fn render_with_params(
         &self,
         params: &HashMap<String, String>,
-        styles: Option<&[ParamType]>,
+        styles: Option<&[ParamStyle]>,
         ignore_missing: bool,
     ) -> Result<RenderedSubtask, String> {
+        self.render_with_params_guarded(params, styles, ignore_missing, None)
+    }
+
+    /// Same as [`Subtask::render_with_params`], with explicit control over the
+    /// SQL guard. `guard: None` means "on for SQL tasks".
+    pub fn render_with_params_guarded(
+        &self,
+        params: &HashMap<String, String>,
+        styles: Option<&[ParamStyle]>,
+        ignore_missing: bool,
+        guard: Option<bool>,
+    ) -> Result<RenderedSubtask, String> {
+        if self.guard_enabled(guard) {
+            self.check_params(params, styles)?;
+        }
+
         let mut all_missing = Vec::new();
 
         // Apply from ORIGINAL path template
@@ -317,9 +336,25 @@ impl Subtask {
     pub fn apply_parameters(
         &self,
         params: &HashMap<String, String>,
-        styles: Option<&[ParamType]>,
+        styles: Option<&[ParamStyle]>,
         ignore_missing: bool,
     ) -> Result<Self, String> {
+        self.apply_parameters_guarded(params, styles, ignore_missing, None)
+    }
+
+    /// Same as [`Subtask::apply_parameters`], with explicit control over the
+    /// SQL guard. `guard: None` means "on for SQL tasks".
+    pub fn apply_parameters_guarded(
+        &self,
+        params: &HashMap<String, String>,
+        styles: Option<&[ParamStyle]>,
+        ignore_missing: bool,
+        guard: Option<bool>,
+    ) -> Result<Self, String> {
+        if self.guard_enabled(guard) {
+            self.check_params(params, styles)?;
+        }
+
         let mut all_missing = Vec::new();
 
         // Apply from ORIGINAL path template
@@ -366,6 +401,238 @@ impl Subtask {
             params: self.params.clone(),
             stored_params: Some(params.clone()),
         })
+    }
+
+    /// Whether the SQL-injection guard runs for this subtask.
+    ///
+    /// `Some(v)` forces it either way; `None` enables it exactly for SQL tasks,
+    /// where interpolated values end up inside a statement.
+    pub fn guard_enabled(&self, guard: Option<bool>) -> bool {
+        guard.unwrap_or(self.task_type == Some(TaskType::Sql))
+    }
+
+    /// Run the SQL guard over every provided value that the command template
+    /// actually references. Values used only in `path`/`name` are not checked:
+    /// they never reach the SQL text.
+    pub fn check_params(
+        &self,
+        params: &HashMap<String, String>,
+        styles: Option<&[ParamStyle]>,
+    ) -> Result<(), String> {
+        let Some(command) = &self.command else {
+            return Ok(());
+        };
+
+        let mut used: Vec<String> = Self::detect_parameters_in_text(command, styles)
+            .into_iter()
+            .collect();
+        used.sort();
+
+        for name in used {
+            let value = params
+                .get(&name)
+                .or_else(|| params.get(&name.to_lowercase()));
+            if let Some(value) = value {
+                sql_guard::check_value(&name, value)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Rewrite the command template into a driver-ready query plus the ordered
+    /// parameter names to bind, instead of interpolating values into the SQL.
+    ///
+    /// `identifiers` lists parameter names that must be inlined rather than
+    /// bound (table/schema/column names — no driver can bind those); their
+    /// values are validated as SQL identifiers first.
+    pub fn bind_command(
+        &self,
+        params: &HashMap<String, String>,
+        styles: Option<&[ParamStyle]>,
+        sql_style: SqlParamStyle,
+        identifiers: &[String],
+    ) -> Result<BoundQuery, String> {
+        let Some(command) = &self.command else {
+            return Err(format!(
+                "subtask '{}' has no command to prepare; load it first",
+                self.name
+            ));
+        };
+
+        let mut inline: HashMap<String, String> = HashMap::new();
+        for name in identifiers {
+            let value = params
+                .get(name)
+                .or_else(|| params.get(&name.to_lowercase()))
+                .ok_or_else(|| {
+                    format!("identifier '{}' was requested but no value was given", name)
+                })?;
+            inline.insert(name.clone(), sql_guard::check_identifier(value)?);
+        }
+
+        bind_text(command, styles, sql_style, &inline)
+    }
+
+    /// The `sqlparser` dialect this subtask's SQL should be read with, derived
+    /// from its `system_type`.
+    pub fn dialect(&self) -> &'static str {
+        sql_analysis::dialect_name(self.system_type)
+    }
+
+    /// Candidate command texts to hand the parser, in preference order, each
+    /// paired with a map from the sentinel it used back to the placeholder it
+    /// stood for.
+    ///
+    /// A raw template does not parse — `FROM {tbl}` is not SQL — so each
+    /// placeholder is replaced by a sentinel. Two passes are tried because no
+    /// single sentinel fits every position: a bare identifier works for
+    /// `FROM {tbl}`, a number for `LIMIT {n}`. Both stay valid inside quotes,
+    /// so `'{name}'` remains a well-formed literal.
+    pub fn sentinel_renders(
+        &self,
+        styles: Option<&[ParamStyle]>,
+    ) -> Vec<(String, HashMap<String, String>)> {
+        let Some(command) = &self.command else {
+            return Vec::new();
+        };
+        let names = Self::detect_parameters_in_text(command, styles);
+
+        // Pass 1: a per-parameter identifier, so the analysis can name the
+        // placeholder a table came from instead of an opaque token.
+        let mut named: HashMap<String, String> = HashMap::new();
+        let mut back: HashMap<String, String> = HashMap::new();
+        for name in &names {
+            let sanitized: String = name
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect();
+            let sentinel = format!("_p_{}", sanitized);
+            back.insert(sentinel.clone(), format!("{{{}}}", name));
+            named.insert(name.clone(), sentinel);
+        }
+
+        // Pass 2: a plain number, for placeholders that sit where only a
+        // literal parses. The sentinel is not reversible, hence no map.
+        let numeric: HashMap<String, String> = names
+            .iter()
+            .map(|name| (name.clone(), "1".to_string()))
+            .collect();
+
+        vec![
+            (
+                Self::apply_parameters_to_text(command, &named, styles, true).0,
+                back,
+            ),
+            (
+                Self::apply_parameters_to_text(command, &numeric, styles, true).0,
+                HashMap::new(),
+            ),
+        ]
+    }
+
+    /// Parse the command and report what it does.
+    ///
+    /// With `params`, the rendered command is analysed — which also surfaces
+    /// anything an interpolated value added to the statement. Without them, a
+    /// sentinel-substituted copy of the template is used instead.
+    ///
+    /// Always fails open: unparseable SQL yields `parsed = false` and an empty
+    /// verdict, never an error.
+    pub fn analyze(
+        &self,
+        params: Option<&HashMap<String, String>>,
+        styles: Option<&[ParamStyle]>,
+    ) -> SqlAnalysis {
+        let dialect = self.dialect();
+
+        // No command is "nothing to analyse", not "an empty statement that
+        // parsed fine" — report it the same way as unparseable SQL.
+        let Some(command) = &self.command else {
+            return SqlAnalysis::unparsed(
+                dialect,
+                format!("subtask '{}' has no command to analyze", self.name),
+            );
+        };
+
+        let candidates: Vec<(String, HashMap<String, String>)> = match params {
+            Some(params) => vec![(
+                Self::apply_parameters_to_text(command, params, styles, true).0,
+                HashMap::new(),
+            )],
+            None => self.sentinel_renders(styles),
+        };
+
+        let mut first: Option<SqlAnalysis> = None;
+        for (candidate, back) in candidates {
+            let mut analysis = sql_analysis::analyze(&candidate, dialect);
+            if analysis.parsed {
+                Self::restore_placeholders(&mut analysis, &back);
+                return analysis;
+            }
+            first.get_or_insert(analysis);
+        }
+        first.expect("candidates was checked to be non-empty")
+    }
+
+    /// Put the original placeholders back into anything the analysis reports,
+    /// so a table read from `FROM {tbl}` is named `{tbl}` and not `_p_tbl`.
+    fn restore_placeholders(analysis: &mut SqlAnalysis, back: &HashMap<String, String>) {
+        if back.is_empty() {
+            return;
+        }
+        // Longest sentinel first: `_p_a` must not clobber part of `_p_a_b`.
+        let mut pairs: Vec<(&String, &String)> = back.iter().collect();
+        pairs.sort_by_key(|(sentinel, _)| std::cmp::Reverse(sentinel.len()));
+
+        let restore = |text: &mut String| {
+            for (sentinel, original) in &pairs {
+                if text.contains(sentinel.as_str()) {
+                    *text = text.replace(sentinel.as_str(), original);
+                }
+            }
+        };
+
+        for table in analysis.tables.iter_mut() {
+            restore(table);
+        }
+        for warning in analysis.warnings.iter_mut() {
+            restore(warning);
+        }
+    }
+
+    /// Reject the SQL when it runs a statement kind the caller forbade.
+    ///
+    /// Fails open by design: SQL that does not parse cannot be judged, so it is
+    /// allowed through rather than blocked. Callers that need certainty should
+    /// check `analyze().parsed` themselves.
+    pub fn check_forbidden(
+        &self,
+        params: Option<&HashMap<String, String>>,
+        styles: Option<&[ParamStyle]>,
+        forbid: &[StatementKind],
+    ) -> Result<(), String> {
+        if forbid.is_empty() {
+            return Ok(());
+        }
+
+        let analysis = self.analyze(params, styles);
+        let hits = analysis.forbidden_hits(forbid);
+        if hits.is_empty() {
+            return Ok(());
+        }
+
+        let names: Vec<&str> = hits.iter().map(|k| k.name()).collect();
+        let tables = if analysis.tables.is_empty() {
+            String::new()
+        } else {
+            format!(" on {}", analysis.tables.join(", "))
+        };
+        Err(format!(
+            "subtask '{}' runs forbidden statement(s): {}{}",
+            self.name,
+            names.join(", "),
+            tables
+        ))
     }
 }
 
@@ -432,7 +699,7 @@ mod tests {
     #[test]
     fn test_detect_curly() {
         let text = "path/{env}/file_{date}.sql";
-        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamType::Curly]));
+        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamStyle::Curly]));
         assert!(params.contains("env"));
         assert!(params.contains("date"));
         assert_eq!(params.len(), 2);
@@ -441,7 +708,7 @@ mod tests {
     #[test]
     fn test_detect_dollar() {
         let text = "run $user on $host now";
-        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamType::Dollar]));
+        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamStyle::Dollar]));
         assert!(params.contains("user"));
         assert!(params.contains("host"));
         assert_eq!(params.len(), 2);
@@ -450,7 +717,7 @@ mod tests {
     #[test]
     fn test_detect_dollar_brace() {
         let text = "connect to ${db} as ${user}";
-        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamType::DollarBrace]));
+        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamStyle::DollarBrace]));
         assert!(params.contains("db"));
         assert!(params.contains("user"));
         assert_eq!(params.len(), 2);
@@ -459,7 +726,8 @@ mod tests {
     #[test]
     fn test_detect_double_underscore() {
         let text = "Hello __NAME__, your code is __STATUS__";
-        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamType::DoubleUnderscore]));
+        let params =
+            Subtask::detect_parameters_in_text(text, Some(&[ParamStyle::DoubleUnderscore]));
         assert!(params.contains("NAME"));
         assert!(params.contains("STATUS"));
         assert_eq!(params.len(), 2);
@@ -468,7 +736,7 @@ mod tests {
     #[test]
     fn test_detect_percent() {
         let text = "%env% and %region%";
-        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamType::Percent]));
+        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamStyle::Percent]));
         assert!(params.contains("env"));
         assert!(params.contains("region"));
         assert_eq!(params.len(), 2);
@@ -477,7 +745,7 @@ mod tests {
     #[test]
     fn test_detect_angle() {
         let text = "deploy to <environment> zone <zone>";
-        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamType::Angle]));
+        let params = Subtask::detect_parameters_in_text(text, Some(&[ParamStyle::Angle]));
         assert!(params.contains("environment"));
         assert!(params.contains("zone"));
         assert_eq!(params.len(), 2);
@@ -492,7 +760,7 @@ mod tests {
         let text = "file_{env}_{date}.sql";
         let params = map(&[("env", "prod"), ("date", "2025")]);
         let (out, missing) =
-            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamType::Curly]), false);
+            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamStyle::Curly]), false);
         assert_eq!(missing.len(), 0);
         assert_eq!(out, "file_prod_2025.sql");
     }
@@ -502,7 +770,7 @@ mod tests {
         let text = "backup $host-$user";
         let params = map(&[("host", "srv"), ("user", "alice")]);
         let (out, missing) =
-            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamType::Dollar]), false);
+            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamStyle::Dollar]), false);
         assert_eq!(out, "backup srv-alice");
         assert!(missing.is_empty());
     }
@@ -514,7 +782,7 @@ mod tests {
         let (out, missing) = Subtask::apply_parameters_to_text(
             text,
             &params,
-            Some(&[ParamType::DollarBrace]),
+            Some(&[ParamStyle::DollarBrace]),
             false,
         );
         assert_eq!(out, "db=prod, user=bob");
@@ -528,7 +796,7 @@ mod tests {
         let (out, missing) = Subtask::apply_parameters_to_text(
             text,
             &params,
-            Some(&[ParamType::DoubleUnderscore]),
+            Some(&[ParamStyle::DoubleUnderscore]),
             false,
         );
         println!("{}", out);
@@ -541,7 +809,7 @@ mod tests {
         let text = "%env%/%region%";
         let params = map(&[("env", "prod"), ("region", "eu")]);
         let (out, missing) =
-            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamType::Percent]), false);
+            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamStyle::Percent]), false);
         assert_eq!(out, "prod/eu");
         assert!(missing.is_empty());
     }
@@ -551,7 +819,7 @@ mod tests {
         let text = "<stage>-<version>";
         let params = map(&[("stage", "beta"), ("version", "3")]);
         let (out, missing) =
-            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamType::Angle]), false);
+            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamStyle::Angle]), false);
         assert_eq!(out, "beta-3");
         assert!(missing.is_empty());
     }
@@ -565,7 +833,7 @@ mod tests {
         let text = "Hello {name}";
         let params = map(&[]);
         let (out, missing) =
-            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamType::Curly]), false);
+            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamStyle::Curly]), false);
 
         assert_eq!(missing, vec!["name"]);
         assert_eq!(out, "Hello {name}");
@@ -576,7 +844,7 @@ mod tests {
         let text = "Hello {name}";
         let params = map(&[]);
         let (out, missing) =
-            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamType::Curly]), true);
+            Subtask::apply_parameters_to_text(text, &params, Some(&[ParamStyle::Curly]), true);
 
         assert_eq!(missing, vec!["name"]);
         assert_eq!(out, "Hello {name}"); // unchanged
@@ -794,5 +1062,93 @@ mod tests {
         assert_eq!(rendered.path, "report.sql");
         assert_eq!(rendered.command, Some("psql -h localhost".to_string()));
         assert!(rendered.params.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_template_with_sentinels() {
+        let mut s = Subtask::new("purge.sql");
+        s.system_type = Some(SystemType::PostgreSQL);
+        s.command = Some("DELETE FROM analytics.{tbl}".into());
+
+        let analysis = s.analyze(None, None);
+
+        assert!(analysis.parsed);
+        assert_eq!(analysis.dialect, "postgres");
+        assert_eq!(analysis.statements, vec![StatementKind::Delete]);
+        // The sentinel is mapped back to the placeholder it stood for.
+        assert_eq!(analysis.tables, vec!["analytics.{tbl}"]);
+        assert!(analysis
+            .warnings
+            .iter()
+            .any(|w| w.contains("analytics.{tbl}")));
+    }
+
+    #[test]
+    fn test_analyze_falls_back_to_a_numeric_sentinel() {
+        let mut s = Subtask::new("page.sql");
+        s.system_type = Some(SystemType::PostgreSQL);
+        // An identifier does not parse after LIMIT; the numeric pass does.
+        s.command = Some("SELECT * FROM t LIMIT {n}".into());
+
+        let analysis = s.analyze(None, None);
+
+        assert!(analysis.parsed);
+        assert_eq!(analysis.tables, vec!["t"]);
+    }
+
+    #[test]
+    fn test_analyze_rendered_params_sees_injected_statements() {
+        let mut s = Subtask::new("q.sql");
+        s.system_type = Some(SystemType::PostgreSQL);
+        s.command = Some("SELECT * FROM users WHERE n = '{n}'".into());
+
+        let clean = s.analyze(Some(&map(&[("n", "alice")])), None);
+        assert_eq!(clean.statements, vec![StatementKind::Select]);
+
+        let injected = s.analyze(Some(&map(&[("n", "x'; DROP TABLE users; --")])), None);
+        assert_eq!(
+            injected.statements,
+            vec![StatementKind::Select, StatementKind::Drop]
+        );
+    }
+
+    #[test]
+    fn test_analyze_without_command_is_not_parsed() {
+        let s = Subtask::new("q.sql");
+        let analysis = s.analyze(None, None);
+
+        assert!(!analysis.parsed);
+        assert!(analysis.error.unwrap().contains("no command to analyze"));
+    }
+
+    #[test]
+    fn test_check_forbidden_fails_open_on_unparseable_sql() {
+        let mut s = Subtask::new("secret.sql");
+        s.system_type = Some(SystemType::Duckdb);
+        s.command = Some("CREATE PERSISTENT SECRET s (TYPE POSTGRES, PORT 5432)".into());
+
+        assert!(!s.analyze(None, None).parsed);
+        // Unjudgeable SQL is allowed through rather than blocked.
+        assert!(s
+            .check_forbidden(None, None, &[StatementKind::Drop])
+            .is_ok());
+    }
+
+    #[test]
+    fn test_check_forbidden_blocks_and_names_the_statement() {
+        let mut s = Subtask::new("purge.sql");
+        s.system_type = Some(SystemType::PostgreSQL);
+        s.command = Some("TRUNCATE TABLE events".into());
+
+        assert!(s.check_forbidden(None, None, &[]).is_ok());
+        assert!(s
+            .check_forbidden(None, None, &[StatementKind::Drop])
+            .is_ok());
+
+        let err = s
+            .check_forbidden(None, None, &[StatementKind::Truncate])
+            .unwrap_err();
+        assert!(err.contains("truncate"), "{}", err);
+        assert!(err.contains("events"), "{}", err);
     }
 }

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from subtask_manager import ParamType, Subtask, SubtaskManager
+from subtask_manager import ParamStyle, Subtask, SubtaskManager
 
 
 def get_default_path():
@@ -70,7 +70,7 @@ def test_params_filtered_styles():
             # подменяем параметры только двух типов {{в двойных скобках}}, ${доллар-скобки}
             "all_styles0.sql",
             {"env": "dev", "db": "test_db"},
-            [ParamType.DoubleCurly, ParamType.DollarBrace],
+            [ParamStyle.DoubleCurly, ParamStyle.DollarBrace],
             "select '{uuid}' as uuid, 'report_dev.sql' as src, 'psql -h $host -U $user -d test_db' as cmd, '__user__' as user, <id> as id from %table%",
         ),
         (
@@ -81,9 +81,9 @@ def test_params_filtered_styles():
                 "db": "test_db",
             },
             [
-                ParamType.Curly,
-                ParamType.DollarBrace,
-                ParamType.DoubleCurly,
+                ParamStyle.Curly,
+                ParamStyle.DollarBrace,
+                ParamStyle.DoubleCurly,
             ],
             "select '51492cf0-a5b1-4b5d-8665-98cfb5858660' as uuid, 'report_dev.sql' as src, 'psql -h $host -U $user -d test_db' as cmd, '__user__' as user, <id> as id from %table%",
         ),
@@ -99,13 +99,13 @@ def test_params_filtered_styles():
                 "table": "users",
             },
             [
-                ParamType.Curly,
-                ParamType.Dollar,
-                ParamType.DollarBrace,
-                ParamType.DoubleCurly,
-                ParamType.DoubleUnderscore,
-                ParamType.Percent,
-                ParamType.Angle,
+                ParamStyle.Curly,
+                ParamStyle.Dollar,
+                ParamStyle.DollarBrace,
+                ParamStyle.DoubleCurly,
+                ParamStyle.DoubleUnderscore,
+                ParamStyle.Percent,
+                ParamStyle.Angle,
             ],
             "select '51492cf0-a5b1-4b5d-8665-98cfb5858660' as uuid, 'report_dev.sql' as src, 'psql -h localhost -U postgres -d test_db' as cmd, 'postgres' as user, 10 as id from users",
         ),
@@ -128,19 +128,19 @@ def test_different_param_data_types():
         (
             "non_string_params0.sql",
             {"name": "Alice", "id": 10},
-            [ParamType.Curly],
+            [ParamStyle.Curly],
             "SELECT * FROM users WHERE name = 'Alice' AND id = 10 and is_active = __is_active__",
         ),
         (
             "non_string_params0.sql",
             {"name": "Bob", "id": 20, "is_active": True},
-            [ParamType.Curly, ParamType.DoubleUnderscore],
+            [ParamStyle.Curly, ParamStyle.DoubleUnderscore],
             "SELECT * FROM users WHERE name = 'Bob' AND id = 20 and is_active = True",
         ),
         (
             "non_string_params1.sql",
             {"activated_at": "2022-01-01", "balance": 1000.123456},
-            [ParamType.Curly, ParamType.DoubleUnderscore],
+            [ParamStyle.Curly, ParamStyle.DoubleUnderscore],
             "SELECT * FROM users WHERE activated_at = '2022-01-01' AND balance >= 1000.123456",
         ),
     ]

@@ -44,4 +44,4 @@ def test_classify_invalid_extension(tmp_path: Path):
     classifier = FileClassifier(tmp_path)
 
     with pytest.raises(ValueError, match="Unknown task type"):
-        _ =  classifier.classify(file_path)
+        _ = classifier.classify(file_path)

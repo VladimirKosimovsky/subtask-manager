@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from subtask_manager import ParamType, Subtask, SubtaskManager
+from subtask_manager import ParamStyle, Subtask, SubtaskManager
 
 
 def get_default_path():
@@ -41,29 +41,28 @@ def test_get_params_filtered_styles():
         (
             # подменяем параметры только двух типов {{в двойных скобках}}, ${доллар-скобки}
             "all_styles0.sql",
-            [ParamType.DoubleCurly, ParamType.DollarBrace],
+            [ParamStyle.DoubleCurly, ParamStyle.DollarBrace],
             set(["db", "env"]),
         ),
         (
             "all_styles0.sql",
-            
             [
-                ParamType.Curly,
-                ParamType.DollarBrace,
-                ParamType.DoubleCurly,
+                ParamStyle.Curly,
+                ParamStyle.DollarBrace,
+                ParamStyle.DoubleCurly,
             ],
-             set(["uuid", "env", "db"]),
+            set(["uuid", "env", "db"]),
         ),
         (
             "all_styles0.sql",
             [
-                ParamType.Curly,
-                ParamType.Dollar,
-                ParamType.DollarBrace,
-                ParamType.DoubleCurly,
-                ParamType.DoubleUnderscore,
-                ParamType.Percent,
-                ParamType.Angle,
+                ParamStyle.Curly,
+                ParamStyle.Dollar,
+                ParamStyle.DollarBrace,
+                ParamStyle.DoubleCurly,
+                ParamStyle.DoubleUnderscore,
+                ParamStyle.Percent,
+                ParamStyle.Angle,
             ],
             set(["uuid", "env", "db", "host", "user", "id", "table"]),
         ),
@@ -82,18 +81,18 @@ def test_get_stored_params():
     test_cases = [
         (
             "non_string_params0.sql",
-            {"name": "Alice", "id": '10'},
-            [ParamType.Curly],
+            {"name": "Alice", "id": "10"},
+            [ParamStyle.Curly],
         ),
         (
             "non_string_params0.sql",
-            {"name": "Bob", "id": '20', "is_active": 'True'},
-            [ParamType.Curly, ParamType.DoubleUnderscore],
+            {"name": "Bob", "id": "20", "is_active": "True"},
+            [ParamStyle.Curly, ParamStyle.DoubleUnderscore],
         ),
         (
             "non_string_params1.sql",
-            {"activated_at": "2022-01-01", "balance": '1000.123456'},
-            [ParamType.Curly, ParamType.DoubleUnderscore],
+            {"activated_at": "2022-01-01", "balance": "1000.123456"},
+            [ParamStyle.Curly, ParamStyle.DoubleUnderscore],
         ),
     ]
 

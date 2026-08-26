@@ -1,17 +1,28 @@
+// `#[pymethods]` expands to code that converts an already-`PyErr` value into a
+// `PyErr`, which clippy flags on the *source* return type. Nothing in this crate
+// can fix that, so the lint is off crate-wide.
+#![allow(clippy::useless_conversion)]
+
 mod enums;
 mod file_classifier;
 mod file_loader;
 mod file_scanner;
 mod models;
+mod py_sql;
 mod py_utils;
+mod sql_analysis;
+mod sql_binding;
+mod sql_guard;
 
 use pyo3::types::{PyAny, PySet};
 use std::collections::HashMap;
 
-use crate::enums::ParamType;
+use crate::enums::{ParamStyle, SqlParamStyle};
 use crate::file_classifier::FileClassifier;
 use crate::file_loader::load;
 use crate::models::{RenderedSubtask, Subtask};
+use crate::py_sql::{PreparedQuery, SqlGuard};
+use crate::sql_analysis::{SqlAnalysis, StatementKind};
 use enums::{EtlStage, SystemType, TaskType};
 use file_scanner::FileScanner;
 use strum::IntoEnumIterator;
@@ -22,6 +33,17 @@ use pyo3::types::{PyDict, PyList};
 use pyo3::PyObject;
 
 use crate::py_utils::py_path_to_string;
+
+/// Convert a Python mapping into `HashMap<String, String>`, stringifying values
+/// through `__str__` the way the interpolating paths expect.
+fn py_dict_to_string_map(params: &Bound<'_, PyDict>) -> PyResult<HashMap<String, String>> {
+    let mut map = HashMap::with_capacity(params.len());
+    for item in params.items() {
+        let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
+        map.insert(k.extract::<String>()?, v.str()?.to_string());
+    }
+    Ok(map)
+}
 
 // SubtaskManager with lazy loading
 #[pyclass]
@@ -76,7 +98,7 @@ impl SubtaskManager {
 
         let file_scanner = FileScanner::new(extensions);
         let file_paths = file_scanner
-            .scan_files(&base_path)
+            .scan_files(base_path)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
         // Create classifier instance for lazy loading
@@ -139,6 +161,7 @@ impl SubtaskManager {
     }
 
     #[pyo3(signature = (etl_stage=None, entity=None, system_type=None, task_type=None, is_common=None, include_common=None))]
+    #[allow(clippy::too_many_arguments)] // each argument is a documented Python keyword
     fn get_tasks(
         &mut self,
         py: Python,
@@ -231,33 +254,146 @@ impl SubtaskManager {
 }
 
 #[pymethods]
-impl ParamType {
+impl ParamStyle {
     pub fn __str__(&self) -> &'static str {
         self.name()
     }
     pub fn __repr__(&self) -> String {
-        format!("ParamType.{}", self.name().to_uppercase())
+        format!("ParamStyle.{}", self.name().to_uppercase())
     }
     #[getter]
     #[pyo3(name = "name")]
-    fn param_type_name_py(&self) -> &'static str {
+    fn param_style_name_py(&self) -> &'static str {
         self.name()
     }
     #[getter]
     #[pyo3(name = "aliases")]
-    fn param_type_aliases_py(&self) -> Vec<&'static str> {
+    fn param_style_aliases_py(&self) -> Vec<&'static str> {
         self.aliases().to_vec()
     }
     #[getter]
     #[pyo3(name = "id")]
-    fn param_type_id_py(&self) -> u8 {
+    fn param_style_id_py(&self) -> u8 {
         self.id()
     }
 
     #[staticmethod]
     #[pyo3(name = "from_alias")]
-    fn from_alias_py(alias: String) -> PyResult<ParamType> {
-        ParamType::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
+    fn from_alias_py(alias: String) -> PyResult<ParamStyle> {
+        ParamStyle::from_alias(&alias).map_err(PyValueError::new_err)
+    }
+}
+
+#[pymethods]
+impl SqlParamStyle {
+    pub fn __str__(&self) -> &'static str {
+        self.name()
+    }
+    pub fn __repr__(&self) -> String {
+        format!("SqlParamStyle.{}", self.name().to_uppercase())
+    }
+    #[getter]
+    #[pyo3(name = "name")]
+    fn sql_param_style_name_py(&self) -> &'static str {
+        self.name()
+    }
+    #[getter]
+    #[pyo3(name = "aliases")]
+    fn sql_param_style_aliases_py(&self) -> Vec<&'static str> {
+        self.aliases().to_vec()
+    }
+    #[getter]
+    #[pyo3(name = "id")]
+    fn sql_param_style_id_py(&self) -> u8 {
+        self.id()
+    }
+    /// True when the driver expects a mapping instead of a sequence.
+    #[getter]
+    #[pyo3(name = "is_named")]
+    fn sql_param_style_is_named_py(&self) -> bool {
+        self.is_named()
+    }
+
+    #[staticmethod]
+    #[pyo3(name = "from_alias")]
+    fn from_alias_py(alias: String) -> PyResult<SqlParamStyle> {
+        SqlParamStyle::from_alias(&alias).map_err(PyValueError::new_err)
+    }
+}
+
+#[pymethods]
+impl StatementKind {
+    pub fn __str__(&self) -> &'static str {
+        self.name()
+    }
+    pub fn __repr__(&self) -> String {
+        format!("StatementKind.{}", self.name().to_uppercase())
+    }
+    #[getter]
+    #[pyo3(name = "name")]
+    fn statement_kind_name_py(&self) -> &'static str {
+        self.name()
+    }
+    #[getter]
+    #[pyo3(name = "aliases")]
+    fn statement_kind_aliases_py(&self) -> Vec<&'static str> {
+        self.aliases().to_vec()
+    }
+    #[getter]
+    #[pyo3(name = "id")]
+    fn statement_kind_id_py(&self) -> u8 {
+        self.id()
+    }
+    /// True for statements that destroy data or schema irreversibly.
+    #[getter]
+    #[pyo3(name = "is_destructive")]
+    fn statement_kind_is_destructive_py(&self) -> bool {
+        self.is_destructive()
+    }
+
+    #[staticmethod]
+    #[pyo3(name = "from_alias")]
+    fn from_alias_py(alias: String) -> PyResult<StatementKind> {
+        StatementKind::from_alias(&alias).map_err(PyValueError::new_err)
+    }
+}
+
+#[pymethods]
+impl SqlAnalysis {
+    /// True when any statement destroys data or schema (DROP/TRUNCATE/DELETE).
+    ///
+    /// Always false when `parsed` is false — that means "not analysed", not
+    /// "safe".
+    #[getter]
+    #[pyo3(name = "is_destructive")]
+    fn is_destructive_py(&self) -> bool {
+        self.is_destructive()
+    }
+
+    /// Whether a given statement kind appears in the body.
+    fn has(&self, kind: StatementKind) -> bool {
+        self.statements.contains(&kind)
+    }
+
+    pub fn __repr__(&self) -> String {
+        if !self.parsed {
+            return format!(
+                "SqlAnalysis(parsed=False, dialect='{}', error={:?})",
+                self.dialect, self.error
+            );
+        }
+        let kinds: Vec<&str> = self.statements.iter().map(|k| k.name()).collect();
+        format!(
+            "SqlAnalysis(parsed=True, dialect='{}', statements={:?}, tables={:?}, warnings={})",
+            self.dialect,
+            kinds,
+            self.tables,
+            self.warnings.len()
+        )
+    }
+
+    pub fn __str__(&self) -> String {
+        self.__repr__()
     }
 }
 
@@ -291,7 +427,7 @@ impl EtlStage {
     #[staticmethod]
     #[pyo3(name = "from_alias")]
     fn from_alias_py(alias: String) -> PyResult<EtlStage> {
-        EtlStage::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
+        EtlStage::from_alias(&alias).map_err(PyValueError::new_err)
     }
 }
 
@@ -325,7 +461,7 @@ impl SystemType {
     #[staticmethod]
     #[pyo3(name = "from_alias")]
     fn from_alias_py(alias: String) -> PyResult<SystemType> {
-        SystemType::from_alias(&alias).map_err(|e| PyValueError::new_err(e))
+        SystemType::from_alias(&alias).map_err(PyValueError::new_err)
     }
 }
 
@@ -359,7 +495,7 @@ impl TaskType {
     #[staticmethod]
     #[pyo3(name = "from_extension")]
     fn from_extension_py(extension: String) -> PyResult<TaskType> {
-        TaskType::from_extension(&extension).map_err(|e| PyValueError::new_err(e))
+        TaskType::from_extension(&extension).map_err(PyValueError::new_err)
     }
 }
 
@@ -367,6 +503,7 @@ impl TaskType {
 impl Subtask {
     #[new]
     #[pyo3(signature = (name="".to_string(), path=None, stage=None, entity=None, system_type=None, task_type=None, is_common=false, command=None))]
+    #[allow(clippy::too_many_arguments)] // each argument is a documented Python keyword
     pub fn py_new(
         name: String,
         path: Option<String>,
@@ -442,10 +579,10 @@ impl Subtask {
     #[pyo3(signature = (styles=None))]
     pub fn get_params_py(
         &self,
-        styles: Option<Vec<ParamType>>, // optional param styles from Python
-        py: Python,                     // we need the GIL to build Python objects
+        styles: Option<Vec<ParamStyle>>, // optional param styles from Python
+        py: Python,                      // we need the GIL to build Python objects
     ) -> PyResult<PyObject> {
-        // Map style names (strings) → ParamType
+        // Map style names (strings) → ParamStyle
 
         // Call the Rust implementation
         let params = self.get_params(styles.as_deref());
@@ -483,64 +620,159 @@ impl Subtask {
 
     /// Apply parameters and return a lightweight RenderedSubtask with only the output values.
     /// More efficient than apply_parameters() which returns a full Subtask clone.
-    #[pyo3(signature = (params, styles=None, ignore_missing=None))]
+    #[pyo3(signature = (params, styles=None, ignore_missing=None, guard=None, forbid=None))]
     #[pyo3(name = "render_with_params")]
     pub fn render_with_params_py(
         &self,
         py: Python,
         params: &Bound<'_, PyDict>,
-        styles: Option<Vec<ParamType>>,
+        styles: Option<Vec<ParamStyle>>,
         ignore_missing: Option<bool>,
+        guard: Option<bool>,
+        forbid: Option<Vec<StatementKind>>,
     ) -> PyResult<Py<RenderedSubtask>> {
-        // convert params to HashMap<String,String>
-        let mut map = HashMap::new();
-        for item in params.items() {
-            let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
-            let key = k.extract::<String>()?;
-
-            // Convert any Python object to string using its __str__ method
-            let val = v.str()?.to_string();
-            map.insert(key, val);
-        }
+        let map = py_dict_to_string_map(params)?;
 
         let ignore_missing = ignore_missing.unwrap_or(false);
 
+        if let Some(forbid) = &forbid {
+            self.check_forbidden(Some(&map), styles.as_deref(), forbid)
+                .map_err(PyValueError::new_err)?;
+        }
+
         // call the Rust render_with_params
-        match self.render_with_params(&map, styles.as_deref(), ignore_missing) {
+        match self.render_with_params_guarded(&map, styles.as_deref(), ignore_missing, guard) {
             Ok(rendered) => Py::new(py, rendered),
             Err(e) => Err(PyValueError::new_err(e)),
         }
     }
 
+    /// Parse the command and report what it does: statement kinds, tables
+    /// touched, and warnings about risky constructs.
+    ///
+    /// With `params`, the rendered command is analysed, which also surfaces
+    /// anything an interpolated value added to the statement. Without them a
+    /// sentinel-substituted copy of the template is analysed instead.
+    ///
+    /// Never raises: SQL the dialect cannot parse comes back with
+    /// `parsed = False`. That means "not analysed", not "safe".
+    #[pyo3(signature = (params=None, styles=None))]
+    #[pyo3(name = "analyze")]
+    pub fn analyze_py(
+        &self,
+        params: Option<&Bound<'_, PyDict>>,
+        styles: Option<Vec<ParamStyle>>,
+    ) -> PyResult<SqlAnalysis> {
+        let map = match params {
+            Some(params) => Some(py_dict_to_string_map(params)?),
+            None => None,
+        };
+        Ok(self.analyze(map.as_ref(), styles.as_deref()))
+    }
+
+    /// Rewrite the command into a driver-ready `(query, params)` pair instead
+    /// of interpolating values into the SQL text.
+    ///
+    /// Placeholders wrapped in quotes (`'{name}'`) lose their quotes so the
+    /// value is genuinely bound. Parameter names listed in `identifiers` are
+    /// inlined after identifier validation, since no driver can bind a table
+    /// name.
+    #[pyo3(signature = (params=None, styles=None, param_style=SqlParamStyle::Qmark, identifiers=None, ignore_missing=false, forbid=None))]
+    #[pyo3(name = "prepare")]
+    #[allow(clippy::too_many_arguments)] // each argument is a documented Python keyword
+    pub fn prepare_py(
+        &self,
+        py: Python,
+        params: Option<&Bound<'_, PyDict>>,
+        styles: Option<Vec<ParamStyle>>,
+        param_style: SqlParamStyle,
+        identifiers: Option<Vec<String>>,
+        ignore_missing: bool,
+        forbid: Option<Vec<StatementKind>>,
+    ) -> PyResult<PreparedQuery> {
+        let identifiers = identifiers.unwrap_or_default();
+
+        if let Some(forbid) = &forbid {
+            // Bound values never become SQL, so the template's own shape is what
+            // matters here — analyse the sentinel render, not the bound query.
+            self.check_forbidden(None, styles.as_deref(), forbid)
+                .map_err(PyValueError::new_err)?;
+        }
+
+        // String view of the params, used to validate inlined identifiers.
+        let string_params = match params {
+            Some(params) => py_dict_to_string_map(params)?,
+            None => HashMap::new(),
+        };
+
+        let bound = self
+            .bind_command(&string_params, styles.as_deref(), param_style, &identifiers)
+            .map_err(PyValueError::new_err)?;
+
+        // Bound values keep their Python types: the driver, not us, decides how
+        // an int, a date or None is encoded.
+        let mut values: Vec<PyObject> = Vec::with_capacity(bound.names.len());
+        let mut missing: Vec<String> = Vec::new();
+        for name in &bound.names {
+            let value = params.and_then(|p| {
+                p.get_item(name)
+                    .ok()
+                    .flatten()
+                    .or_else(|| p.get_item(name.to_lowercase()).ok().flatten())
+            });
+            match value {
+                Some(value) => values.push(value.into_py(py)),
+                None => {
+                    missing.push(name.clone());
+                    values.push(py.None());
+                }
+            }
+        }
+
+        if !missing.is_empty() && !ignore_missing {
+            missing.sort();
+            missing.dedup();
+            return Err(PyValueError::new_err(format!(
+                "Missing parameters for keys: {}",
+                missing.join(", ")
+            )));
+        }
+
+        Ok(PreparedQuery {
+            query: bound.query,
+            names: bound.names,
+            param_style,
+            values,
+        })
+    }
+
     /// Apply parameters from a Python dict to the subtask.
     /// Returns a new Subtask instance with parameters applied (immutable operation).
     /// params: dict-like mapping string->string
-    /// styles: optional list of ParamType names, e.g. ["DollarBrace", "Curly"]
+    /// styles: optional list of ParamStyle names, e.g. ["DollarBrace", "Curly"]
     /// ignore_missing: if true, missing placeholders are left unchanged; if false, raises ValueError
-    #[pyo3(signature = (params, styles=None, ignore_missing=None))]
+    #[pyo3(signature = (params, styles=None, ignore_missing=None, guard=None, forbid=None))]
     #[pyo3(name = "apply_parameters")]
     pub fn apply_parameters_py(
         &self,
         py: Python,
         params: &Bound<'_, PyDict>,
-        styles: Option<Vec<ParamType>>,
+        styles: Option<Vec<ParamStyle>>,
         ignore_missing: Option<bool>,
+        guard: Option<bool>,
+        forbid: Option<Vec<StatementKind>>,
     ) -> PyResult<Py<Subtask>> {
-        // convert params to HashMap<String,String>
-        let mut map = HashMap::new();
-        for item in params.items() {
-            let (k, v): (Bound<PyAny>, Bound<PyAny>) = item.extract()?;
-            let key = k.extract::<String>()?;
-
-            // Convert any Python object to string using its __str__ method
-            let val = v.str()?.to_string();
-            map.insert(key, val);
-        }
+        let map = py_dict_to_string_map(params)?;
 
         let ignore_missing = ignore_missing.unwrap_or(false);
 
+        if let Some(forbid) = &forbid {
+            self.check_forbidden(Some(&map), styles.as_deref(), forbid)
+                .map_err(PyValueError::new_err)?;
+        }
+
         // call the Rust apply_parameters (returns new Subtask)
-        match self.apply_parameters(&map, styles.as_deref(), ignore_missing) {
+        match self.apply_parameters_guarded(&map, styles.as_deref(), ignore_missing, guard) {
             Ok(new_subtask) => {
                 // Return the new Subtask as a Python object
                 Py::new(py, new_subtask)
@@ -571,7 +803,12 @@ fn _core(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RenderedSubtask>()?;
     m.add_class::<EtlStage>()?;
     m.add_class::<SystemType>()?;
-    m.add_class::<ParamType>()?;
+    m.add_class::<ParamStyle>()?;
+    m.add_class::<SqlParamStyle>()?;
+    m.add_class::<PreparedQuery>()?;
+    m.add_class::<SqlGuard>()?;
+    m.add_class::<SqlAnalysis>()?;
+    m.add_class::<StatementKind>()?;
     m.add_class::<TaskType>()?;
     m.add_class::<FileScanner>()?;
     m.add_class::<FileClassifier>()?;

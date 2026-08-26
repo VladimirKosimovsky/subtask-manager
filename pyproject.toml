@@ -1,6 +1,6 @@
 [project]
 name = "subtask-manager"
-version = "0.3.0"
+version = "0.4.0"
 description = "ETL Subtask management library written in Rust"
 readme = "README.md"
 license = { text = "MIT" }

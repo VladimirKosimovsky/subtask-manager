@@ -52,7 +52,8 @@ Set up trusted publishers for **both** indexes.
   - `vX.Y.Z` (example: `v0.2.2`)
 
 Recommended:
-- Keep `Cargo.toml` and `pyproject.toml` versions aligned.
+- Keep `Cargo.toml`, `pyproject.toml` and `subtask_manager/__init__.py`
+  versions aligned — `just bump X.Y.Z` sets all three.
 - Release only from a clean `main` branch state.
 
 ---
@@ -61,13 +62,12 @@ Recommended:
 
 Before tagging:
 
-1. Run tests locally
-   - `cargo test`
-   - `uv run -m pytest`
-2. Verify version in:
-   - `Cargo.toml`
-   - `pyproject.toml`
-3. Update docs/changelog as needed.
+1. Run everything locally
+   - `just check` (lint + format check + Rust and Python tests)
+2. Verify the version is in sync
+   - `just show-version` (fails if `Cargo.toml`, `pyproject.toml` and
+     `subtask_manager/__init__.py` disagree)
+3. Update `CHANGELOG.md` and any affected docs.
 4. Commit and push all release-related changes.
 
 ---

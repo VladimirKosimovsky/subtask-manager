@@ -6,11 +6,11 @@ use std::sync::OnceLock;
 use strum_macros::EnumIter;
 
 /* ============================================================================================
- *  ParamType  (Unified with other enums — no regex(), pure metadata)
+ *  ParamStyle  (Unified with other enums — no regex(), pure metadata)
  * ============================================================================================ */
 
 #[derive(Debug, Clone)]
-struct ParamTypeData {
+struct ParamStyleData {
     id: u8,
     name: &'static str,
     aliases: Vec<&'static str>,
@@ -18,7 +18,7 @@ struct ParamTypeData {
 
 #[pyclass(eq, eq_int)]
 #[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, EnumIter, Serialize, Deserialize)]
-pub enum ParamType {
+pub enum ParamStyle {
     Curly,            // {param}
     Dollar,           // $param
     DollarBrace,      // ${param}
@@ -29,70 +29,70 @@ pub enum ParamType {
     Other,            // fallback / no match
 }
 
-impl ParamType {
-    fn param_type_data() -> &'static HashMap<ParamType, ParamTypeData> {
-        static DATA: OnceLock<HashMap<ParamType, ParamTypeData>> = OnceLock::new();
+impl ParamStyle {
+    fn param_style_data() -> &'static HashMap<ParamStyle, ParamStyleData> {
+        static DATA: OnceLock<HashMap<ParamStyle, ParamStyleData>> = OnceLock::new();
         DATA.get_or_init(|| {
             HashMap::from([
                 (
-                    ParamType::DoubleCurly,
-                    ParamTypeData {
+                    ParamStyle::DoubleCurly,
+                    ParamStyleData {
                         id: 0,
                         name: "double_curly",
                         aliases: vec!["double_curly", "double_curley", "{{name}}"],
                     },
                 ),
                 (
-                    ParamType::Curly,
-                    ParamTypeData {
+                    ParamStyle::Curly,
+                    ParamStyleData {
                         id: 1,
                         name: "curly",
                         aliases: vec!["curly", "curley", "{name}"],
                     },
                 ),
                 (
-                    ParamType::Dollar,
-                    ParamTypeData {
+                    ParamStyle::Dollar,
+                    ParamStyleData {
                         id: 2,
                         name: "dollar",
                         aliases: vec!["dollar", "$name"],
                     },
                 ),
                 (
-                    ParamType::DollarBrace,
-                    ParamTypeData {
+                    ParamStyle::DollarBrace,
+                    ParamStyleData {
                         id: 3,
                         name: "dollar_brace",
                         aliases: vec!["dollarbrace", "dollar_brace", "${name}"],
                     },
                 ),
                 (
-                    ParamType::DoubleUnderscore,
-                    ParamTypeData {
+                    ParamStyle::DoubleUnderscore,
+                    ParamStyleData {
                         id: 4,
                         name: "double_underscore",
                         aliases: vec!["doubleunderscore", "__name__", "__NAME__"],
                     },
                 ),
                 (
-                    ParamType::Percent,
-                    ParamTypeData {
+                    ParamStyle::Percent,
+                    ParamStyleData {
                         id: 5,
                         name: "percent",
                         aliases: vec!["percent", "%name%"],
                     },
                 ),
                 (
-                    ParamType::Angle,
-                    ParamTypeData {
+                    ParamStyle::Angle,
+                    ParamStyleData {
                         id: 6,
                         name: "angle",
                         aliases: vec!["angle", "<name>"],
                     },
                 ),
                 (
-                    ParamType::Other,
-                    ParamTypeData {
+                    ParamStyle::Other,
+                    ParamStyleData {
                         id: 7,
                         name: "other",
                         aliases: vec!["other"],
@@ -102,30 +102,30 @@ impl ParamType {
         })
     }
 
-    pub fn from_alias(alias: &str) -> Result<ParamType, String> {
+    pub fn from_alias(alias: &str) -> Result<ParamStyle, String> {
         let alias_lower = alias.to_lowercase();
-        for (ptype, data) in Self::param_type_data().iter() {
+        for (ptype, data) in Self::param_style_data().iter() {
             if data.name == alias_lower || data.aliases.iter().any(|&a| a == alias_lower) {
                 return Ok(*ptype);
             }
         }
-        Err(format!("Unknown ParamType alias: {}", alias))
+        Err(format!("Unknown ParamStyle alias: {}", alias))
     }
 
     pub fn id(&self) -> u8 {
-        Self::param_type_data()[self].id
+        Self::param_style_data()[self].id
     }
 
     pub fn name(&self) -> &'static str {
-        Self::param_type_data()[self].name
+        Self::param_style_data()[self].name
     }
 
     pub fn aliases(&self) -> &Vec<&'static str> {
-        &Self::param_type_data()[self].aliases
+        &Self::param_style_data()[self].aliases
     }
 }
 
-impl fmt::Display for ParamType {
+impl fmt::Display for ParamStyle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.name())
     }
@@ -488,5 +488,127 @@ impl TaskType {
 
     pub fn extensions(&self) -> &Vec<&'static str> {
         &Self::task_type_data()[self].extensions
+    }
+}
+
+/* ============================================================================================
+ *  SqlParamStyle  (PEP 249 paramstyle of the target DB driver)
+ * ============================================================================================ */
+
+#[derive(Debug, Clone)]
+struct SqlParamStyleData {
+    id: u8,
+    name: &'static str,
+    aliases: Vec<&'static str>,
+}
+
+/// Placeholder syntax understood by the DB driver the query is handed to.
+/// Mirrors PEP 249 `paramstyle`.
+#[pyclass(eq, eq_int)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Copy, EnumIter, Serialize, Deserialize)]
+pub enum SqlParamStyle {
+    /// `?` — sqlite3, duckdb, pyodbc
+    Qmark,
+    /// `$1`, `$2` — postgres (asyncpg, psycopg native)
+    Numeric,
+    /// `:name` — oracledb, sqlalchemy text()
+    Named,
+    /// `%s` — psycopg2, mysqlclient
+    Format,
+    /// `%(name)s` — psycopg2, mysqlclient (named form)
+    Pyformat,
+}
+
+impl SqlParamStyle {
+    fn sql_param_style_data() -> &'static HashMap<SqlParamStyle, SqlParamStyleData> {
+        static DATA: OnceLock<HashMap<SqlParamStyle, SqlParamStyleData>> = OnceLock::new();
+        DATA.get_or_init(|| {
+            HashMap::from([
+                (
+                    SqlParamStyle::Qmark,
+                    SqlParamStyleData {
+                        id: 0,
+                        name: "qmark",
+                        aliases: vec!["qmark", "?", "sqlite", "duckdb"],
+                    },
+                ),
+                (
+                    SqlParamStyle::Numeric,
+                    SqlParamStyleData {
+                        id: 1,
+                        name: "numeric",
+                        aliases: vec!["numeric", "$1", "asyncpg"],
+                    },
+                ),
+                (
+                    SqlParamStyle::Named,
+                    SqlParamStyleData {
+                        id: 2,
+                        name: "named",
+                        aliases: vec!["named", ":name", "oracle"],
+                    },
+                ),
+                (
+                    SqlParamStyle::Format,
+                    SqlParamStyleData {
+                        id: 3,
+                        name: "format",
+                        aliases: vec!["format", "%s", "psycopg2"],
+                    },
+                ),
+                (
+                    SqlParamStyle::Pyformat,
+                    SqlParamStyleData {
+                        id: 4,
+                        name: "pyformat",
+                        aliases: vec!["pyformat", "%(name)s"],
+                    },
+                ),
+            ])
+        })
+    }
+
+    pub fn from_alias(alias: &str) -> Result<SqlParamStyle, String> {
+        let alias_lower = alias.to_lowercase();
+        for (style, data) in Self::sql_param_style_data().iter() {
+            if data.name == alias_lower || data.aliases.iter().any(|&a| a == alias_lower) {
+                return Ok(*style);
+            }
+        }
+        Err(format!("Unknown SqlParamStyle alias: {}", alias))
+    }
+
+    pub fn id(&self) -> u8 {
+        Self::sql_param_style_data()[self].id
+    }
+
+    pub fn name(&self) -> &'static str {
+        Self::sql_param_style_data()[self].name
+    }
+
+    pub fn aliases(&self) -> &Vec<&'static str> {
+        &Self::sql_param_style_data()[self].aliases
+    }
+
+    /// True when the driver expects a mapping of values rather than a sequence.
+    pub fn is_named(&self) -> bool {
+        matches!(self, SqlParamStyle::Named | SqlParamStyle::Pyformat)
+    }
+
+    /// Render the placeholder for the `index`-th (0-based) bound value of `name`.
+    pub fn placeholder(&self, name: &str, index: usize) -> String {
+        match self {
+            SqlParamStyle::Qmark => "?".to_string(),
+            SqlParamStyle::Numeric => format!("${}", index + 1),
+            SqlParamStyle::Named => format!(":{}", name),
+            SqlParamStyle::Format => "%s".to_string(),
+            SqlParamStyle::Pyformat => format!("%({})s", name),
+        }
+    }
+}
+
+impl fmt::Display for SqlParamStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
     }
 }

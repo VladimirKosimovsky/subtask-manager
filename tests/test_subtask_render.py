@@ -32,7 +32,7 @@ def test_render_with_params_lightweight():
 
         # Use lightweight render
         rendered: RenderedSubtask = subtask.render_with_params(params)
-        
+
         assert rendered.command == expected_command
         assert rendered.name == test_case[0]
         # Verify params were stored
@@ -61,13 +61,13 @@ def test_get_command_helper():
 def test_render_lightweight():
     """Test render_lightweight for tasks without parameters."""
     sm: SubtaskManager = SubtaskManager(get_default_path())
-    
+
     # Get any task
     subtask: Subtask = sm.get_task("dollar0.sql")
-    
+
     # Render without params
     rendered: RenderedSubtask = subtask.render_lightweight()
-    
+
     assert rendered.name == "dollar0.sql"
     assert rendered.command is not None
     assert len(rendered.params) == 0  # No params provided
@@ -76,23 +76,23 @@ def test_render_lightweight():
 def test_immutability():
     """Verify that apply_parameters doesn't modify the original Subtask."""
     sm: SubtaskManager = SubtaskManager(get_default_path())
-    
+
     original: Subtask = sm.get_task("dollar0.sql")
     original_path = original.path
     original_cmd = original.command
-    
+
     # Apply parameters - should return new instance
     applied = original.apply_parameters({"user_id": "999"})
-    
+
     # Original should be unchanged
     assert original.path == original_path
     assert original.command == original_cmd
     assert original.rendered_command is None
-    
+
     # Applied should have rendered values
     assert applied.rendered_command is not None
     assert "999" in applied.rendered_command
-    
+
     # Can apply different parameters to same original
     applied2 = original.apply_parameters({"user_id": "123"})
     assert applied2.rendered_command is not None
